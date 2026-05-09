@@ -2,22 +2,9 @@ const admin = require("firebase-admin");
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
-const fs = require("fs");
 
-// Initialize Firebase Admin - try secret file first, then env var
-let serviceAccount;
-try {
-    if (fs.existsSync("/etc/secrets/firebase-sa.json")) {
-        serviceAccount = JSON.parse(fs.readFileSync("/etc/secrets/firebase-sa.json", "utf8"));
-    } else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    } else {
-        throw new Error("No Firebase credentials found");
-    }
-} catch (e) {
-    console.error("Firebase init error:", e.message);
-    process.exit(1);
-}
+// Initialize Firebase Admin with service account
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
 });
@@ -34,7 +21,6 @@ const ZAP_KEY = process.env.ZAP_KEY || "zapf04a091271fe611b36cd63bdc918bd2d";
 const ZAPUPI_API_URL = "https://pay.zapupi.com/api/create-order";
 const ZAPUPI_STATUS_URL = "https://pay.zapupi.com/api/order-status";
 
-// This will be your Cloud Run URL after deployment — update if needed
 const REDIRECT_URL = process.env.REDIRECT_URL || "https://sensixpert-backend.onrender.com/payment-success";
 
 // ═══════════════════════════════════════════════════════════
@@ -55,149 +41,83 @@ app.get("/", (req, res) => {
 
 // ═══════════════════════════════════════════════════════════
 // POST /create-payment
-// Called by Android app to initiate a ZapUPI payment
 // ═══════════════════════════════════════════════════════════
 app.post("/create-payment", async (req, res) => {
     try {
         const { userId, plan } = req.body;
-
-        if (!userId || !plan) {
-            return res.status(400).json({ error: "userId and plan are required" });
-        }
+        if (!userId || !plan) return res.status(400).json({ error: "userId and plan are required" });
 
         const planInfo = PLANS[plan];
-        if (!planInfo) {
-            return res.status(400).json({ error: "Invalid plan" });
-        }
+        if (!planInfo) return res.status(400).json({ error: "Invalid plan" });
 
-        // Get user info from Firestore
         const userDoc = await db.collection("users").doc(userId).get();
-        if (!userDoc.exists) {
-            return res.status(404).json({ error: "User not found" });
-        }
+        if (!userDoc.exists) return res.status(404).json({ error: "User not found" });
+
         const userData = userDoc.data();
         const phone = userData.phone || "0000000000";
-
-        // Generate unique order ID
         const orderId = `SX_${userId.substring(0, 8)}_${Date.now()}`;
 
-        // Store pending payment in Firestore for webhook verification
         await db.collection("payments").doc(orderId).set({
-            userId: userId,
-            plan: plan,
-            amount: planInfo.price,
-            status: "pending",
+            userId, plan, amount: planInfo.price, status: "pending",
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
-        // Debug: Log key prefix
-        console.log("Using ZapUPI key starting with:", ZAP_KEY.substring(0, 15) + "...");
-
-        // Create ZapUPI payment order
         const requestBody = {
-            zap_key: ZAP_KEY.trim(),
-            order_id: orderId,
-            amount: planInfo.price.toString(),
-            customer_mobile: phone,
+            zap_key: ZAP_KEY.trim(), order_id: orderId,
+            amount: planInfo.price.toString(), customer_mobile: phone,
             remark: `SensiXpert ${planInfo.name} Subscription`,
-            success_url: REDIRECT_URL,
-            failed_url: REDIRECT_URL,
+            success_url: REDIRECT_URL, failed_url: REDIRECT_URL,
         };
-        console.log("ZapUPI request body (key masked):", { ...requestBody, zap_key: "***" });
 
         const zapupiResponse = await axios.post(ZAPUPI_API_URL, requestBody);
-
         const paymentData = zapupiResponse.data;
-        console.log("ZapUPI response:", JSON.stringify(paymentData));
 
         if (paymentData && paymentData.payment_url) {
-            return res.json({
-                success: true,
-                paymentUrl: paymentData.payment_url,
-                orderId: orderId,
-            });
+            return res.json({ success: true, paymentUrl: paymentData.payment_url, orderId });
         } else {
-            console.error("ZapUPI no payment_url:", paymentData);
             return res.status(500).json({ error: "Could not create payment" });
         }
     } catch (error) {
         console.error("Create payment error:", error.message);
-        if (error.response) {
-            console.error("ZapUPI error status:", error.response.status);
-            console.error("ZapUPI error data:", JSON.stringify(error.response.data));
-        }
-        return res.status(500).json({ error: error.response ? `ZapUPI error: ${error.response.status}` : "Internal server error" });
+        return res.status(500).json({ error: "Internal server error" });
     }
 });
 
 // ═══════════════════════════════════════════════════════════
 // POST /webhook
-// Called by ZapUPI when payment status changes
-// This is the ONLY way subscription gets activated
 // ═══════════════════════════════════════════════════════════
 app.post("/webhook", async (req, res) => {
     try {
         console.log("Webhook received:", JSON.stringify(req.body));
-
         const { order_id, status, amount, txn_id, utr, pay_amount } = req.body;
+        if (!order_id) return res.status(400).json({ error: "Missing order_id" });
 
-        if (!order_id) {
-            return res.status(400).json({ error: "Missing order_id" });
-        }
-
-        // Verify payment exists in our records
         const paymentDoc = await db.collection("payments").doc(order_id).get();
-        if (!paymentDoc.exists) {
-            console.error("Payment not found:", order_id);
-            return res.status(404).json({ error: "Payment not found" });
-        }
+        if (!paymentDoc.exists) return res.status(404).json({ error: "Payment not found" });
 
         const paymentData = paymentDoc.data();
         const userId = paymentData.userId;
         const plan = paymentData.plan;
         const expectedAmount = paymentData.amount;
 
-        // Update payment record
         await db.collection("payments").doc(order_id).update({
-            status: status,
-            transactionId: txn_id || null,
-            utr: utr || null,
-            payAmount: pay_amount || null,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            status, transactionId: txn_id || null, utr: utr || null,
+            payAmount: pay_amount || null, updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
-        // Only activate subscription on SUCCESS
-        // ZapUPI sends status as "Success" (capital S)
         if (status === "Success" || status === "success" || status === "SUCCESS") {
-            // Verify amount matches
-            if (parseInt(amount) !== expectedAmount) {
-                console.error(`Amount mismatch: expected ${expectedAmount}, got ${amount}`);
-                return res.status(400).json({ error: "Amount mismatch" });
-            }
-
+            if (parseInt(amount) !== expectedAmount) return res.status(400).json({ error: "Amount mismatch" });
             const planInfo = PLANS[plan];
-            if (!planInfo) {
-                console.error("Invalid plan in payment:", plan);
-                return res.status(400).json({ error: "Invalid plan" });
-            }
+            if (!planInfo) return res.status(400).json({ error: "Invalid plan" });
 
             const now = Date.now();
             const endDate = now + (planInfo.days * 24 * 60 * 60 * 1000);
-
-            // ✅ Update user's subscription in Firestore
-            // This is the ONLY place subscription gets activated
             await db.collection("users").doc(userId).update({
-                "subscription.plan": plan,
-                "subscription.startDate": now,
-                "subscription.endDate": endDate,
-                "subscription.status": "active",
+                "subscription.plan": plan, "subscription.startDate": now,
+                "subscription.endDate": endDate, "subscription.status": "active",
             });
-
-            console.log(`✅ Subscription activated for ${userId}: ${plan} until ${new Date(endDate)}`);
-        } else {
-            console.log(`❌ Payment ${status} for ${order_id}`);
+            console.log(`✅ Subscription activated for ${userId}: ${plan}`);
         }
-
         return res.json({ success: true });
     } catch (error) {
         console.error("Webhook error:", error.message);
@@ -207,60 +127,9 @@ app.post("/webhook", async (req, res) => {
 
 // ═══════════════════════════════════════════════════════════
 // GET /payment-success
-// Redirect URL after ZapUPI payment
 // ═══════════════════════════════════════════════════════════
 app.get("/payment-success", (req, res) => {
-    res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Payment Status - SensiXpert</title>
-            <style>
-                body {
-                    background: #080808;
-                    color: white;
-                    font-family: -apple-system, sans-serif;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    min-height: 100vh;
-                    margin: 0;
-                    text-align: center;
-                }
-                .card {
-                    background: #1A1A1A;
-                    border-radius: 20px;
-                    padding: 40px 30px;
-                    max-width: 360px;
-                    box-shadow: 0 0 40px rgba(255,30,30,0.1);
-                }
-                .icon { font-size: 60px; margin-bottom: 16px; }
-                h2 { color: #00E676; margin-bottom: 8px; }
-                p { color: #999; font-size: 14px; margin-bottom: 24px; }
-                .btn {
-                    background: linear-gradient(to right, #FF1E1E, #D50000);
-                    color: white;
-                    border: none;
-                    padding: 14px 32px;
-                    border-radius: 12px;
-                    font-size: 16px;
-                    font-weight: bold;
-                    cursor: pointer;
-                    letter-spacing: 1px;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="card">
-                <div class="icon">✅</div>
-                <h2>Payment Received!</h2>
-                <p>Your subscription will be activated shortly. Go back to SensiXpert app to enjoy premium features.</p>
-                <button class="btn" onclick="window.close()">CLOSE</button>
-            </div>
-        </body>
-        </html>
-    `);
+    res.send(`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Payment Status</title><style>body{background:#080808;color:white;font-family:-apple-system,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;text-align:center}.card{background:#1A1A1A;border-radius:20px;padding:40px 30px;max-width:360px;box-shadow:0 0 40px rgba(255,30,30,0.1)}.icon{font-size:60px;margin-bottom:16px}h2{color:#00E676;margin-bottom:8px}p{color:#999;font-size:14px;margin-bottom:24px}.btn{background:linear-gradient(to right,#FF1E1E,#D50000);color:white;border:none;padding:14px 32px;border-radius:12px;font-size:16px;font-weight:bold;cursor:pointer}</style></head><body><div class="card"><div class="icon">✅</div><h2>Payment Received!</h2><p>Your subscription will be activated shortly. Go back to SensiXpert app.</p><button class="btn" onclick="window.close()">CLOSE</button></div></body></html>`);
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -294,45 +163,59 @@ app.get("/check-subscription/:userId", async (req, res) => {
         }
         return res.json({ isActive: subscription.status === "active" && subscription.endDate > Date.now(), subscription });
     } catch (error) {
-        console.error("Check subscription error:", error.message);
         return res.status(500).json({ error: "Internal server error" });
     }
 });
 
 // ═══════════════════════════════════════════════════════════
-// POST /send-notification — Proxies to OneSignal REST API
+// POST /send-notification (FCM - original)
 // ═══════════════════════════════════════════════════════════
-const ONESIGNAL_APP_ID = "e83708b1-ef26-4755-9309-d5aeb64c734e";
-const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY || "os_v2_app_5a3qrmppezdvleyj2wxlmtdtjyh3dyelhyzuq75e4wevzw2ymmixzdrokqyi26x7xqbvla5dmm5f4hxtqurbvw5fv6nkccxtwa27vfi";
-
 app.post("/send-notification", async (req, res) => {
     try {
         const { title, message, target, specificUser } = req.body;
         if (!title || !message) return res.status(400).json({ error: "title and message are required" });
-        console.log("🔑 API Key length:", ONESIGNAL_API_KEY.length, "starts:", ONESIGNAL_API_KEY.substring(0, 20));
 
-        const payload = { app_id: ONESIGNAL_APP_ID, headings: { en: title }, contents: { en: message }, target_channel: "push" };
-
+        let tokens = [];
         if (target === "specific" && specificUser) {
-            payload.include_aliases = { external_id: [specificUser] };
-        } else if (target === "subscribers") {
-            payload.included_segments = ["All"];
-            payload.filters = [{ field: "tag", key: "subscribed", value: "true" }];
-        } else if (target === "non_subscribers") {
-            payload.included_segments = ["All"];
-            payload.filters = [{ field: "tag", key: "subscribed", value: "false" }];
+            let userDoc = await db.collection("users").doc(specificUser).get();
+            if (!userDoc.exists) {
+                const q = await db.collection("users").where("email", "==", specificUser).limit(1).get();
+                if (!q.empty) userDoc = q.docs[0];
+            }
+            if (userDoc && userDoc.exists) {
+                const token = userDoc.data().fcmToken;
+                if (token) tokens.push(token);
+            }
         } else {
-            payload.included_segments = ["All"];
+            const usersSnap = await db.collection("users").get();
+            usersSnap.forEach(doc => {
+                const data = doc.data();
+                const token = data.fcmToken;
+                if (!token) return;
+                const sub = data.subscription || {};
+                const isActive = sub.status === "active" && sub.endDate > Date.now();
+                if (target === "subscribers" && isActive) tokens.push(token);
+                else if (target === "non_subscribers" && !isActive) tokens.push(token);
+                else if (target === "all") tokens.push(token);
+            });
         }
 
-        const osRes = await axios.post("https://api.onesignal.com/notifications", payload, {
-            headers: { "Content-Type": "application/json; charset=utf-8", "Authorization": "Key " + ONESIGNAL_API_KEY }
-        });
-        console.log("📢 OneSignal:", JSON.stringify(osRes.data));
-        return res.json({ success: true, recipients: osRes.data.recipients || 0, id: osRes.data.id });
+        if (tokens.length === 0) return res.json({ success: true, sent: 0, message: "No devices found" });
+
+        let successCount = 0, failCount = 0;
+        for (let i = 0; i < tokens.length; i += 500) {
+            const batch = tokens.slice(i, i + 500);
+            const response = await admin.messaging().sendEachForMulticast({
+                notification: { title, body: message },
+                tokens: batch,
+            });
+            successCount += response.successCount;
+            failCount += response.failureCount;
+        }
+        return res.json({ success: true, sent: successCount, failed: failCount, total: tokens.length });
     } catch (error) {
-        console.error("Send notification error:", error.response?.data || error.message);
-        return res.status(500).json({ success: false, error: error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message });
+        console.error("Send notification error:", error.message);
+        return res.status(500).json({ error: error.message });
     }
 });
 
