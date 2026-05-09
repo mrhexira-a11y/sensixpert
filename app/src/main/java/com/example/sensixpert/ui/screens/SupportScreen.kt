@@ -11,11 +11,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -28,9 +32,11 @@ import com.example.sensixpert.ui.theme.*
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SupportScreen(
     userId: String?,
@@ -62,211 +68,279 @@ fun SupportScreen(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(GamingBackground)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-        ) {
-            // ── Top Bar ──
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0xFF1A0808),
-                                Color(0xFF120606),
-                                GamingBackground
+    Scaffold(
+        containerColor = Color(0xFF0A0A0A),
+        // ── Fixed Top Bar — won't move with keyboard ──
+        topBar = {
+            Surface(
+                color = Color.Transparent,
+                shadowElevation = 8.dp
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFF1A0505),
+                                    Color(0xFF140404),
+                                    Color(0xFF0E0E0E)
+                                )
                             )
                         )
-                    )
-                    .padding(horizontal = 16.dp, vertical = 14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                        .statusBarsPadding()
+                        .padding(horizontal = 8.dp, vertical = 10.dp)
                 ) {
-                    // Back button
-                    Text(
-                        text = "←",
-                        color = TextWhite,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Normal,
-                        modifier = Modifier.clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onNavigateBack
-                        )
-                    )
-
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    // Support avatar
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(
-                                    colors = listOf(GamingRed, GamingDarkRed)
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "🎮",
-                            fontSize = 20.sp
-                        )
-                    }
+                        // Back button
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = TextWhite,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
 
-                    Column {
-                        Text(
-                            text = "SensiXpert Support",
-                            color = TextWhite,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Support avatar with glow
+                        Box(contentAlignment = Alignment.Center) {
+                            // Glow ring
                             Box(
                                 modifier = Modifier
-                                    .size(8.dp)
+                                    .size(46.dp)
                                     .clip(CircleShape)
-                                    .background(GamingGreen)
+                                    .background(
+                                        Brush.radialGradient(
+                                            colors = listOf(
+                                                GamingRed.copy(alpha = 0.3f),
+                                                Color.Transparent
+                                            )
+                                        )
+                                    )
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.linearGradient(
+                                            colors = listOf(
+                                                Color(0xFFCC1818),
+                                                Color(0xFF8B0000)
+                                            )
+                                        )
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "S",
+                                    color = Color.White,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column {
                             Text(
-                                text = "Online",
-                                color = GamingGreen,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
+                                text = "SensiXpert Support",
+                                color = TextWhite,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.3.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                // Animated green dot
+                                val pulseAlpha by rememberInfiniteTransition(label = "pulse")
+                                    .animateFloat(
+                                        initialValue = 0.4f,
+                                        targetValue = 1f,
+                                        animationSpec = infiniteRepeatable(
+                                            animation = tween(1200),
+                                            repeatMode = RepeatMode.Reverse
+                                        ),
+                                        label = "dotPulse"
+                                    )
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(GamingGreen.copy(alpha = pulseAlpha))
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Online • Typically replies within hours",
+                                    color = GamingGreen.copy(alpha = 0.8f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        // ── Bottom Input Bar ──
+        bottomBar = {
+            Surface(
+                color = Color(0xFF0F0F0F),
+                shadowElevation = 12.dp,
+                tonalElevation = 4.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .imePadding()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    // Text field
+                    OutlinedTextField(
+                        value = messageText,
+                        onValueChange = { messageText = it },
+                        placeholder = {
+                            Text(
+                                text = "Type a message...",
+                                color = Color(0xFF555555),
+                                fontSize = 14.sp
+                            )
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextWhite,
+                            unfocusedTextColor = TextWhite,
+                            cursorColor = GamingRed,
+                            focusedBorderColor = GamingRed.copy(alpha = 0.4f),
+                            unfocusedBorderColor = Color(0xFF222222),
+                            focusedContainerColor = Color(0xFF161616),
+                            unfocusedContainerColor = Color(0xFF161616)
+                        ),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp, max = 120.dp),
+                        maxLines = 4,
+                        singleLine = false
+                    )
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    // Send button with gradient
+                    val canSend = messageText.isNotBlank() && !isSending && userId != null
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .shadow(
+                                elevation = if (canSend) 8.dp else 0.dp,
+                                shape = CircleShape,
+                                ambientColor = GamingRed.copy(alpha = 0.3f),
+                                spotColor = GamingRed.copy(alpha = 0.3f)
+                            )
+                            .clip(CircleShape)
+                            .background(
+                                if (canSend)
+                                    Brush.linearGradient(
+                                        listOf(
+                                            Color(0xFFE81616),
+                                            Color(0xFFAA0000)
+                                        )
+                                    )
+                                else
+                                    Brush.linearGradient(
+                                        listOf(
+                                            Color(0xFF252525),
+                                            Color(0xFF1A1A1A)
+                                        )
+                                    )
+                            )
+                            .clickable(enabled = canSend) {
+                                val text = messageText.trim()
+                                if (text.isNotEmpty() && userId != null) {
+                                    isSending = true
+                                    messageText = ""
+                                    scope.launch {
+                                        try {
+                                            supportRepository.sendMessage(
+                                                userId = userId,
+                                                userName = userName ?: "User",
+                                                userEmail = userEmail ?: "",
+                                                text = text
+                                            )
+                                        } catch (_: Exception) {
+                                        } finally {
+                                            isSending = false
+                                        }
+                                    }
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isSending) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Send",
+                                tint = if (canSend) Color.White else Color(0xFF444444),
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
                 }
             }
-
-            // ── Chat Messages ──
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
-                contentPadding = PaddingValues(vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                // Welcome message (always shown first)
-                item {
-                    WelcomeMessage()
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
-                items(messages, key = { it.id }) { message ->
-                    ChatBubble(message = message)
-                }
+        }
+    ) { innerPadding ->
+        // ── Chat Messages ──
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 14.dp),
+            contentPadding = PaddingValues(vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            // Welcome card
+            item {
+                WelcomeCard()
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // ── Message Input ──
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF111111))
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Text field
-                OutlinedTextField(
-                    value = messageText,
-                    onValueChange = { messageText = it },
-                    placeholder = {
-                        Text(
-                            text = "Type your message...",
-                            color = TextDimGrey,
-                            fontSize = 14.sp
-                        )
-                    },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextWhite,
-                        unfocusedTextColor = TextWhite,
-                        cursorColor = GamingRed,
-                        focusedBorderColor = GamingRed.copy(alpha = 0.5f),
-                        unfocusedBorderColor = Color(0xFF2A2A2A),
-                        focusedContainerColor = Color(0xFF1A1A1A),
-                        unfocusedContainerColor = Color(0xFF1A1A1A)
-                    ),
-                    shape = RoundedCornerShape(24.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 48.dp, max = 120.dp),
-                    maxLines = 4,
-                    singleLine = false
-                )
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Send button
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (messageText.isNotBlank() && !isSending)
-                                Brush.linearGradient(listOf(GamingRed, GamingDarkRed))
-                            else
-                                Brush.linearGradient(
-                                    listOf(
-                                        Color(0xFF333333),
-                                        Color(0xFF333333)
-                                    )
-                                )
-                        )
-                        .clickable(
-                            enabled = messageText.isNotBlank() && !isSending && userId != null
-                        ) {
-                            val text = messageText.trim()
-                            if (text.isNotEmpty() && userId != null) {
-                                isSending = true
-                                messageText = ""
-                                scope.launch {
-                                    try {
-                                        supportRepository.sendMessage(
-                                            userId = userId,
-                                            userName = userName ?: "User",
-                                            userEmail = userEmail ?: "",
-                                            text = text
-                                        )
-                                    } catch (e: Exception) {
-                                        // Show error if needed
-                                    } finally {
-                                        isSending = false
-                                    }
-                                }
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isSending) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = Color.White,
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Text(
-                            text = "➤",
-                            color = Color.White,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+            // Group messages by date
+            val grouped = messages.groupBy { msg ->
+                if (msg.timestamp > 0) {
+                    val cal = Calendar.getInstance().apply { timeInMillis = msg.timestamp }
+                    val today = Calendar.getInstance()
+                    when {
+                        cal.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR) &&
+                                cal.get(Calendar.YEAR) == today.get(Calendar.YEAR) -> "Today"
+                        else -> SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+                            .format(Date(msg.timestamp))
                     }
+                } else ""
+            }
+
+            grouped.forEach { (date, msgs) ->
+                // Date separator
+                if (date.isNotEmpty()) {
+                    item {
+                        DateSeparator(date = date)
+                    }
+                }
+                items(msgs, key = { it.id }) { message ->
+                    ChatBubble(message = message)
                 }
             }
         }
@@ -274,48 +348,142 @@ fun SupportScreen(
 }
 
 @Composable
-private fun WelcomeMessage() {
-    Column(
+private fun WelcomeCard() {
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(vertical = 8.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFF1A0808),
+                        Color(0xFF140505),
+                        Color(0xFF0F0F0F)
+                    )
+                )
+            )
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Icon with glow
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                GamingRed.copy(alpha = 0.2f),
+                                Color.Transparent
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Color(0xFFCC1818), Color(0xFF8B0000))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "💬", fontSize = 22.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "How can we help?",
+                color = TextWhite,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.5.sp
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Our team is here to assist you.\nWe typically respond within a few hours.",
+                color = Color(0xFF777777),
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                lineHeight = 19.sp
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Quick info pills
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                InfoPill(text = "🕐 Fast Reply")
+                InfoPill(text = "🔒 Secure")
+                InfoPill(text = "🎮 24/7")
+            }
+        }
+    }
+}
+
+@Composable
+private fun InfoPill(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xFF1A1A1A))
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text = text,
+            color = Color(0xFF999999),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+private fun DateSeparator(date: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(64.dp)
-                .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            GamingRed.copy(alpha = 0.3f),
-                            Color.Transparent
-                        )
-                    )
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(text = "💬", fontSize = 32.sp)
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Text(
-            text = "Customer Support",
-            color = TextWhite,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp
+                .weight(1f)
+                .height(0.5.dp)
+                .background(Color(0xFF222222))
         )
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-            text = "We usually reply within a few hours.\nFeel free to ask anything!",
-            color = TextDimGrey,
-            fontSize = 13.sp,
-            textAlign = TextAlign.Center,
-            lineHeight = 18.sp
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 12.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xFF151515))
+                .padding(horizontal = 14.dp, vertical = 5.dp)
+        ) {
+            Text(
+                text = date,
+                color = Color(0xFF666666),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(0.5.dp)
+                .background(Color(0xFF222222))
         )
     }
 }
@@ -326,47 +494,92 @@ private fun ChatBubble(message: SupportMessage) {
     val timeFormat = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
-        // Sender label
+        // Admin label
         if (!isUser) {
-            Text(
-                text = "SensiXpert Team",
-                color = GamingRed,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(start = 8.dp, bottom = 2.dp)
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Color(0xFFCC1818), Color(0xFF8B0000))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "S",
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "SensiXpert Team",
+                    color = GamingRed.copy(alpha = 0.8f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
 
         Box(
             modifier = Modifier
-                .widthIn(max = 280.dp)
+                .widthIn(max = 290.dp)
+                .shadow(
+                    elevation = 2.dp,
+                    shape = RoundedCornerShape(
+                        topStart = 18.dp,
+                        topEnd = 18.dp,
+                        bottomStart = if (isUser) 18.dp else 4.dp,
+                        bottomEnd = if (isUser) 4.dp else 18.dp
+                    )
+                )
                 .clip(
                     RoundedCornerShape(
-                        topStart = 16.dp,
-                        topEnd = 16.dp,
-                        bottomStart = if (isUser) 16.dp else 4.dp,
-                        bottomEnd = if (isUser) 4.dp else 16.dp
+                        topStart = 18.dp,
+                        topEnd = 18.dp,
+                        bottomStart = if (isUser) 18.dp else 4.dp,
+                        bottomEnd = if (isUser) 4.dp else 18.dp
                     )
                 )
                 .background(
                     if (isUser)
                         Brush.linearGradient(
-                            colors = listOf(GamingRed, GamingDarkRed)
+                            colors = listOf(
+                                Color(0xFFD41414),
+                                Color(0xFFAA0000)
+                            )
                         )
                     else
                         Brush.linearGradient(
-                            colors = listOf(Color(0xFF1E1E1E), Color(0xFF1A1A1A))
+                            colors = listOf(
+                                Color(0xFF1C1C1C),
+                                Color(0xFF171717)
+                            )
                         )
+                )
+                .then(
+                    if (!isUser) Modifier
+                        .background(Color.Transparent)
+                    else Modifier
                 )
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
             Column {
                 Text(
                     text = message.text,
-                    color = if (isUser) Color.White else TextWhite,
+                    color = Color.White,
                     fontSize = 14.sp,
                     lineHeight = 20.sp
                 )
@@ -382,7 +595,10 @@ private fun ChatBubble(message: SupportMessage) {
                         text = if (message.timestamp > 0)
                             timeFormat.format(Date(message.timestamp))
                         else "",
-                        color = if (isUser) Color.White.copy(alpha = 0.6f) else TextDimGrey,
+                        color = if (isUser)
+                            Color.White.copy(alpha = 0.55f)
+                        else
+                            Color(0xFF555555),
                         fontSize = 10.sp
                     )
 
@@ -390,7 +606,10 @@ private fun ChatBubble(message: SupportMessage) {
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = if (message.read) "✓✓" else "✓",
-                            color = if (message.read) Color(0xFF64B5F6) else Color.White.copy(alpha = 0.5f),
+                            color = if (message.read)
+                                Color(0xFF64B5F6)
+                            else
+                                Color.White.copy(alpha = 0.45f),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
