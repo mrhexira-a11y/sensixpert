@@ -2,9 +2,22 @@ const admin = require("firebase-admin");
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
+const fs = require("fs");
 
-// Initialize Firebase Admin with service account
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+// Initialize Firebase Admin - try secret file first, then env var
+let serviceAccount;
+try {
+    if (fs.existsSync("/etc/secrets/firebase-sa.json")) {
+        serviceAccount = JSON.parse(fs.readFileSync("/etc/secrets/firebase-sa.json", "utf8"));
+    } else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    } else {
+        throw new Error("No Firebase credentials found");
+    }
+} catch (e) {
+    console.error("Firebase init error:", e.message);
+    process.exit(1);
+}
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
 });
