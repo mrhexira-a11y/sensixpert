@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="gaming_red">#FFFF1744</color>
+    <color name="gaming_dark_red">#FFD50000</color>
+    <color name="gaming_background">#FF0A0A0A</color>
+    <color name="card_dark">#FF1A1A1A</color>
+    <color name="text_white">#FFFFFFFF</color>
+    <color name="text_grey">#FF999999</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="gaming_green">#FF00E676</color>
+    <color name="gaming_green_dark">#FF00C853</color>
+    <color name="neon_cyan">#FF00FFCC</color>
+    <color name="notification_color">#FFFF1744</color>
+</resources>

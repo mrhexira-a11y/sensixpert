@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SensiXpert</string>
+
+    <!-- Connection Status -->
+    <string name="status_not_connected">Not Connected</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_disconnecting">Disconnecting…</string>
+    <string name="btn_connect">CONNECT</string>
+    <string name="btn_connected">CONNECTED</string>
+    <string name="btn_disconnect">DISCONNECT</string>
+
+    <!-- Modes -->
+    <string name="ultra_boost">Ultra Boost</string>
+    <string name="headshot_mode">Headshot Mode</string>
+
+    <!-- Notification -->
+    <string name="notification_channel_name">Gaming Booster</string>
+    <string name="notification_channel_desc">Shows when gaming mode is active</string>
+    <string name="notification_title">Gaming Mode Connected</string>
+    <string name="notification_text">Ultra Gaming Mode Active</string>
+    <string name="notification_action_disconnect">Disconnect</string>
+
+    <!-- Status Card -->
+    <string name="ultra_server_connected">Ultra Server Connected ⭐</string>
+    <string name="ultra_gaming_active">Ultra Gaming Mode Active</string>
+    <string name="latency_range">20\u201340ms</string>
+
+    <!-- Headshot Mode -->
+    <string name="sensitivity_settings">SENSITIVITY SETTINGS</string>
+    <string name="general">General</string>
+    <string name="red_dot">Red Dot</string>
+    <string name="scope_2x">2x Scope</string>
+    <string name="scope_4x">4x Scope</string>
+    <string name="awm_scope">AWM Scope</string>
+    <string name="free_look">Free Look</string>
+    <string name="recommended_dpi">RECOMMENDED DPI</string>
+    <string name="device_analysis">DEVICE ANALYSIS</string>
+</resources>
