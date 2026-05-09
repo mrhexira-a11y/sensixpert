@@ -22,8 +22,9 @@ class PaymentRepository {
     }
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(120, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .writeTimeout(120, TimeUnit.SECONDS)
         .build()
 
     private val gson = Gson()
@@ -32,39 +33,53 @@ class PaymentRepository {
     /**
      * Calls backend /create-payment to initiate a ZapUPI payment.
      * Returns PaymentResponse with paymentUrl and orderId.
+     * Retries once after warmup if first attempt fails.
      */
     suspend fun createPayment(userId: String, plan: String): Result<PaymentResponse> {
         return withContext(Dispatchers.IO) {
+            // Warmup first to wake Render server
             try {
-                val body = gson.toJson(
-                    mapOf("userId" to userId, "plan" to plan)
-                ).toRequestBody(jsonMediaType)
+                val warmupReq = Request.Builder().url(BACKEND_BASE_URL).get().build()
+                client.newCall(warmupReq).execute().close()
+            } catch (_: Exception) { }
 
-                val request = Request.Builder()
-                    .url("$BACKEND_BASE_URL/create-payment")
-                    .post(body)
-                    .build()
+            var lastError: Exception? = null
+            for (attempt in 1..2) {
+                try {
+                    val body = gson.toJson(
+                        mapOf("userId" to userId, "plan" to plan)
+                    ).toRequestBody(jsonMediaType)
 
-                val response = client.newCall(request).execute()
-                val responseBody = response.body?.string()
+                    val request = Request.Builder()
+                        .url("$BACKEND_BASE_URL/create-payment")
+                        .post(body)
+                        .build()
 
-                if (response.isSuccessful && responseBody != null) {
-                    val responseMap = gson.fromJson(responseBody, Map::class.java)
-                    val paymentUrl = responseMap["paymentUrl"] as? String
-                    val orderId = responseMap["orderId"] as? String ?: ""
-                    if (paymentUrl != null) {
-                        Result.success(PaymentResponse(paymentUrl, orderId))
+                    val response = client.newCall(request).execute()
+                    val responseBody = response.body?.string()
+
+                    if (response.isSuccessful && responseBody != null) {
+                        val responseMap = gson.fromJson(responseBody, Map::class.java)
+                        val paymentUrl = responseMap["paymentUrl"] as? String
+                        val orderId = responseMap["orderId"] as? String ?: ""
+                        if (paymentUrl != null) {
+                            return@withContext Result.success(PaymentResponse(paymentUrl, orderId))
+                        } else {
+                            lastError = Exception("No payment URL returned")
+                        }
                     } else {
-                        Result.failure(Exception("No payment URL returned"))
+                        Log.e("PaymentRepo", "Error: ${response.code} - $responseBody")
+                        lastError = Exception("Payment creation failed: ${response.code}")
                     }
-                } else {
-                    Log.e("PaymentRepo", "Error: ${response.code} - $responseBody")
-                    Result.failure(Exception("Payment creation failed: ${response.code}"))
+                } catch (e: Exception) {
+                    Log.e("PaymentRepo", "Attempt $attempt failed", e)
+                    lastError = e
+                    if (attempt == 1) {
+                        Thread.sleep(2000) // wait before retry
+                    }
                 }
-            } catch (e: Exception) {
-                Log.e("PaymentRepo", "Exception creating payment", e)
-                Result.failure(e)
             }
+            Result.failure(lastError ?: Exception("Payment failed"))
         }
     }
 
