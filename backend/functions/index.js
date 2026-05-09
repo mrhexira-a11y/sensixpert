@@ -290,7 +290,7 @@ app.get("/check-subscription/:userId", async (req, res) => {
 // POST /send-notification — Proxies to OneSignal REST API
 // ═══════════════════════════════════════════════════════════
 const ONESIGNAL_APP_ID = "e83708b1-ef26-4755-9309-d5aeb64c734e";
-const ONESIGNAL_API_KEY = "os_v2_app_2vkd2hsksueofedhd76h2zxdc7hycwlkh7lqk5oxjmzprhvotjcylhpkrjfyqwqowv655lngd3wz74a4nqlwdtjw4a4yqdbcx4yq5q";
+const ONESIGNAL_API_KEY = "os_v2_app_5a3qrmppezdvleyj2wxlmtdtjz2vkd2hsksueofedhd76h2zxdcmowzo3mqzrrguyqnjhjumqaq3wrr3sa3xkjzcdzghpqkdfhgmy6i";
 
 app.post("/send-notification", async (req, res) => {
     try {
