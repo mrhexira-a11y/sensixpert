@@ -304,6 +304,7 @@ async function sendNotification(){
   const title=document.getElementById('notifTitle').value;
   const msg=document.getElementById('notifMessage').value;
   const target=document.getElementById('notifTarget').value;
+  const link=(document.getElementById('notifLink')?.value||'').trim();
   if(!title||!msg){showToast('❌ Title and message required');return}
   const specificUser=target==='specific'?document.getElementById('notifSpecificUser').value:'';
   if(target==='specific'&&!specificUser){showToast('❌ Enter user email or UID');return}
@@ -311,11 +312,10 @@ async function sendNotification(){
   showToast('📤 Sending notification...');
 
   try{
-    // Call backend which proxies to OneSignal (avoids CORS)
     const response=await fetch(BACKEND+'/send-notification',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({title,message:msg,target,specificUser})
+      body:JSON.stringify({title,message:msg,target,specificUser,link:link||undefined})
     });
     const result=await response.json();
     console.log('Notification response:',result);
@@ -323,17 +323,19 @@ async function sendNotification(){
     // Save to Firestore for history
     await db.collection('notifications').add({
       title,message:msg,target,specificUser:specificUser||null,
+      link:link||null,
       recipients:result.recipients||result.sent||0,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
 
     document.getElementById('notifTitle').value='';
     document.getElementById('notifMessage').value='';
+    if(document.getElementById('notifLink'))document.getElementById('notifLink').value='';
 
     if(result.success){
       showToast(`📢 Notification sent! (${result.recipients||result.sent||0} recipients)`);
     }else{
-      showToast('❌ '+(result.error||JSON.stringify(result.errors)||'Unknown error'));
+      showToast('❌ '+(result.error||result.message||'Unknown error'));
     }
     loadNotifications();
   }catch(e){
