@@ -296,6 +296,7 @@ app.post("/send-notification", async (req, res) => {
     try {
         const { title, message, target, specificUser } = req.body;
         if (!title || !message) return res.status(400).json({ error: "title and message are required" });
+        console.log("🔑 API Key length:", ONESIGNAL_API_KEY.length, "starts:", ONESIGNAL_API_KEY.substring(0, 20));
 
         const payload = { app_id: ONESIGNAL_APP_ID, headings: { en: title }, contents: { en: message }, target_channel: "push" };
 
