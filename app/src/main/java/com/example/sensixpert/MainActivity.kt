@@ -17,7 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.activity.compose.BackHandler
 
-import com.example.sensixpert.service.FCMService
+import com.example.sensixpert.service.OneSignalHelper
 import com.example.sensixpert.service.NotificationHelper
 import com.example.sensixpert.ui.screens.*
 import com.example.sensixpert.ui.theme.SensixpertTheme
@@ -81,8 +81,8 @@ class MainActivity : ComponentActivity() {
                             authViewModel.getUserId()?.let { uid ->
                                 subscriptionViewModel.startObserving(uid)
                             }
-                            // Save FCM token for push notifications
-                            FCMService.saveTokenToFirestore()
+                            // Login to OneSignal for push notifications
+                            OneSignalHelper.loginUser()
                         }
                     }
 

@@ -13,6 +13,10 @@ const BACKEND="https://sensixpert-backend.onrender.com";
 let revenueChart,usersChart,revenueChart2,planChart2;
 let loginAttempts=0,lockoutUntil=0;
 
+// OneSignal config
+const ONESIGNAL_APP_ID='e83708b1-ef26-4755-9309-d5aeb64c734e';
+const ONESIGNAL_API_KEY='os_v2_app_2vkd2hsksueofedhd76h2zxdc7hycwlkh7lqk5oxjmzprhvotjcylhpkrjfyqwqowv655lngd3wz74a4nqlwdtjw4a4yqdbcx4yq5q';
+
 // ─── AUTH (SECURE) ───
 async function login(){
   const email=document.getElementById('loginEmail').value;
@@ -303,33 +307,64 @@ async function sendNotification(){
   const specificUser=target==='specific'?document.getElementById('notifSpecificUser').value:'';
   if(target==='specific'&&!specificUser){showToast('❌ Enter user email or UID');return}
 
-  // Show sending state
   showToast('📤 Sending notification...');
 
   try{
-    // Call backend to send real push notification via FCM
-    const response=await fetch(BACKEND+'/send-notification',{
+    // Build OneSignal API payload
+    const payload={
+      app_id:ONESIGNAL_APP_ID,
+      headings:{en:title},
+      contents:{en:msg},
+      target_channel:'push'
+    };
+
+    // Targeting logic
+    if(target==='all'){
+      payload.included_segments=['All'];
+    }else if(target==='subscribers'){
+      payload.included_segments=['All'];
+      payload.filters=[{field:'tag',key:'subscribed',value:'true'}];
+    }else if(target==='non_subscribers'){
+      payload.included_segments=['All'];
+      payload.filters=[{field:'tag',key:'subscribed',value:'false'}];
+    }else if(target==='specific'&&specificUser){
+      payload.include_aliases={external_id:[specificUser]};
+      payload.target_channel='push';
+    }
+
+    // Call OneSignal REST API
+    const response=await fetch('https://api.onesignal.com/notifications',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({title,message:msg,target,specificUser,adminEmail:auth.currentUser?.email||'admin'})
+      headers:{
+        'Content-Type':'application/json; charset=utf-8',
+        'Authorization':'Key '+ONESIGNAL_API_KEY
+      },
+      body:JSON.stringify(payload)
     });
     const result=await response.json();
+    console.log('OneSignal response:',result);
 
-    if(result.success){
-      document.getElementById('notifTitle').value='';
-      document.getElementById('notifMessage').value='';
-      if(result.sent>0){
-        showToast(`📢 Notification sent to ${result.sent} device(s)!`);
-      }else{
-        showToast('⚠️ No devices found with push tokens. Users need to open the app first.');
-      }
-      loadNotifications();
+    // Save to Firestore for history
+    await db.collection('notifications').add({
+      title,message:msg,target,specificUser:specificUser||null,
+      onesignalId:result.id||null,recipients:result.recipients||0,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    document.getElementById('notifTitle').value='';
+    document.getElementById('notifMessage').value='';
+
+    if(result.id){
+      showToast(`📢 Notification sent! (${result.recipients||0} recipients)`);
+    }else if(result.errors){
+      showToast('❌ '+JSON.stringify(result.errors));
     }else{
-      showToast('❌ Failed: '+(result.error||'Unknown error'));
+      showToast('⚠️ Sent but no recipients found. Users need to open the app first.');
     }
+    loadNotifications();
   }catch(e){
     console.error('Send notification error:',e);
-    showToast('❌ Error sending notification: '+e.message);
+    showToast('❌ Error: '+e.message);
   }
 }
 async function loadNotifications(){
