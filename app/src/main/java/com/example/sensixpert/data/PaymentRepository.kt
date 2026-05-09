@@ -22,9 +22,9 @@ class PaymentRepository {
     }
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(120, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
-        .writeTimeout(120, TimeUnit.SECONDS)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
     private val gson = Gson()
@@ -33,16 +33,11 @@ class PaymentRepository {
     /**
      * Calls backend /create-payment to initiate a ZapUPI payment.
      * Returns PaymentResponse with paymentUrl and orderId.
-     * Retries once after warmup if first attempt fails.
+     * NOTE: warmup is handled separately by SubscriptionScreen on open,
+     * so we skip it here to avoid double delay.
      */
     suspend fun createPayment(userId: String, plan: String): Result<PaymentResponse> {
         return withContext(Dispatchers.IO) {
-            // Warmup first to wake Render server
-            try {
-                val warmupReq = Request.Builder().url(BACKEND_BASE_URL).get().build()
-                client.newCall(warmupReq).execute().close()
-            } catch (_: Exception) { }
-
             var lastError: Exception? = null
             for (attempt in 1..2) {
                 try {
@@ -75,7 +70,7 @@ class PaymentRepository {
                     Log.e("PaymentRepo", "Attempt $attempt failed", e)
                     lastError = e
                     if (attempt == 1) {
-                        Thread.sleep(2000) // wait before retry
+                        Thread.sleep(500) // brief wait before retry
                     }
                 }
             }
