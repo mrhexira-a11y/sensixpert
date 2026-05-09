@@ -310,56 +310,29 @@ async function sendNotification(){
   showToast('📤 Sending notification...');
 
   try{
-    // Build OneSignal API payload
-    const payload={
-      app_id:ONESIGNAL_APP_ID,
-      headings:{en:title},
-      contents:{en:msg},
-      target_channel:'push'
-    };
-
-    // Targeting logic
-    if(target==='all'){
-      payload.included_segments=['All'];
-    }else if(target==='subscribers'){
-      payload.included_segments=['All'];
-      payload.filters=[{field:'tag',key:'subscribed',value:'true'}];
-    }else if(target==='non_subscribers'){
-      payload.included_segments=['All'];
-      payload.filters=[{field:'tag',key:'subscribed',value:'false'}];
-    }else if(target==='specific'&&specificUser){
-      payload.include_aliases={external_id:[specificUser]};
-      payload.target_channel='push';
-    }
-
-    // Call OneSignal REST API
-    const response=await fetch('https://api.onesignal.com/notifications',{
+    // Call backend which proxies to OneSignal (avoids CORS)
+    const response=await fetch(BACKEND+'/send-notification',{
       method:'POST',
-      headers:{
-        'Content-Type':'application/json; charset=utf-8',
-        'Authorization':'Key '+ONESIGNAL_API_KEY
-      },
-      body:JSON.stringify(payload)
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({title,message:msg,target,specificUser})
     });
     const result=await response.json();
-    console.log('OneSignal response:',result);
+    console.log('Notification response:',result);
 
     // Save to Firestore for history
     await db.collection('notifications').add({
       title,message:msg,target,specificUser:specificUser||null,
-      onesignalId:result.id||null,recipients:result.recipients||0,
+      recipients:result.recipients||result.sent||0,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
 
     document.getElementById('notifTitle').value='';
     document.getElementById('notifMessage').value='';
 
-    if(result.id){
-      showToast(`📢 Notification sent! (${result.recipients||0} recipients)`);
-    }else if(result.errors){
-      showToast('❌ '+JSON.stringify(result.errors));
+    if(result.success){
+      showToast(`📢 Notification sent! (${result.recipients||result.sent||0} recipients)`);
     }else{
-      showToast('⚠️ Sent but no recipients found. Users need to open the app first.');
+      showToast('❌ '+(result.error||JSON.stringify(result.errors)||'Unknown error'));
     }
     loadNotifications();
   }catch(e){

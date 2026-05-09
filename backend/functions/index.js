@@ -252,20 +252,12 @@ app.get("/payment-success", (req, res) => {
 
 // ═══════════════════════════════════════════════════════════
 // POST /check-order-status
-// Optional: check payment status via ZapUPI API
 // ═══════════════════════════════════════════════════════════
 app.post("/check-order-status", async (req, res) => {
     try {
         const { orderId } = req.body;
-        if (!orderId) {
-            return res.status(400).json({ error: "orderId is required" });
-        }
-
-        const statusResponse = await axios.post(ZAPUPI_STATUS_URL, {
-            zap_key: ZAP_KEY.trim(),
-            order_id: orderId,
-        });
-
+        if (!orderId) return res.status(400).json({ error: "orderId is required" });
+        const statusResponse = await axios.post(ZAPUPI_STATUS_URL, { zap_key: ZAP_KEY.trim(), order_id: orderId });
         return res.json(statusResponse.data);
     } catch (error) {
         console.error("Check order status error:", error.message);
@@ -275,32 +267,19 @@ app.post("/check-order-status", async (req, res) => {
 
 // ═══════════════════════════════════════════════════════════
 // GET /check-subscription/:userId
-// Optional: manual check endpoint
 // ═══════════════════════════════════════════════════════════
 app.get("/check-subscription/:userId", async (req, res) => {
     try {
         const { userId } = req.params;
         const userDoc = await db.collection("users").doc(userId).get();
-
-        if (!userDoc.exists) {
-            return res.status(404).json({ error: "User not found" });
-        }
-
+        if (!userDoc.exists) return res.status(404).json({ error: "User not found" });
         const userData = userDoc.data();
         const subscription = userData.subscription || {};
-
-        // Auto-expire check
         if (subscription.status === "active" && subscription.endDate < Date.now()) {
-            await db.collection("users").doc(userId).update({
-                "subscription.status": "inactive",
-            });
+            await db.collection("users").doc(userId).update({ "subscription.status": "inactive" });
             subscription.status = "inactive";
         }
-
-        return res.json({
-            isActive: subscription.status === "active" && subscription.endDate > Date.now(),
-            subscription: subscription,
-        });
+        return res.json({ isActive: subscription.status === "active" && subscription.endDate > Date.now(), subscription });
     } catch (error) {
         console.error("Check subscription error:", error.message);
         return res.status(500).json({ error: "Internal server error" });
@@ -308,81 +287,43 @@ app.get("/check-subscription/:userId", async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
-// POST /send-notification
-// Called by Admin Panel to send push notifications via FCM
+// POST /send-notification — Proxies to OneSignal REST API
 // ═══════════════════════════════════════════════════════════
+const ONESIGNAL_APP_ID = "e83708b1-ef26-4755-9309-d5aeb64c734e";
+const ONESIGNAL_API_KEY = "os_v2_app_2vkd2hsksueofedhd76h2zxdc7hycwlkh7lqk5oxjmzprhvotjcylhpkrjfyqwqowv655lngd3wz74a4nqlwdtjw4a4yqdbcx4yq5q";
+
 app.post("/send-notification", async (req, res) => {
     try {
-        const { title, message, target, specificUser, adminEmail } = req.body;
+        const { title, message, target, specificUser } = req.body;
+        if (!title || !message) return res.status(400).json({ error: "title and message are required" });
 
-        if (!title || !message) {
-            return res.status(400).json({ error: "title and message are required" });
-        }
-
-        let tokens = [];
-        let targetDesc = "";
+        const payload = { app_id: ONESIGNAL_APP_ID, headings: { en: title }, contents: { en: message }, target_channel: "push" };
 
         if (target === "specific" && specificUser) {
-            let userDoc = await db.collection("users").doc(specificUser).get();
-            if (!userDoc.exists) {
-                const emailQuery = await db.collection("users").where("email", "==", specificUser).limit(1).get();
-                if (!emailQuery.empty) userDoc = emailQuery.docs[0];
-            }
-            if (userDoc && userDoc.exists) {
-                const token = userDoc.data().fcmToken;
-                if (token) tokens.push(token);
-            }
-            targetDesc = "specific: " + specificUser;
+            payload.include_aliases = { external_id: [specificUser] };
+        } else if (target === "subscribers") {
+            payload.included_segments = ["All"];
+            payload.filters = [{ field: "tag", key: "subscribed", value: "true" }];
+        } else if (target === "non_subscribers") {
+            payload.included_segments = ["All"];
+            payload.filters = [{ field: "tag", key: "subscribed", value: "false" }];
         } else {
-            const usersSnap = await db.collection("users").get();
-            usersSnap.forEach(doc => {
-                const data = doc.data();
-                const token = data.fcmToken;
-                if (!token) return;
-                const sub = data.subscription || {};
-                const isActive = sub.status === "active" && sub.endDate > Date.now();
-                if (target === "subscribers" && isActive) tokens.push(token);
-                else if (target === "non_subscribers" && !isActive) tokens.push(token);
-                else if (target === "all") tokens.push(token);
-            });
-            targetDesc = target;
+            payload.included_segments = ["All"];
         }
 
-        if (tokens.length === 0) {
-            return res.json({ success: true, sent: 0, message: "No devices with FCM tokens found" });
-        }
-
-        let successCount = 0, failCount = 0;
-        const batchSize = 500;
-        for (let i = 0; i < tokens.length; i += batchSize) {
-            const batch = tokens.slice(i, i + batchSize);
-            const response = await admin.messaging().sendEachForMulticast({
-                notification: { title, body: message },
-                data: { title, message, target: target || "all" },
-                tokens: batch,
-            });
-            successCount += response.successCount;
-            failCount += response.failureCount;
-        }
-
-        await db.collection("notifications").add({
-            title, message, target: target || "all",
-            specificUser: specificUser || null,
-            sent: successCount, failed: failCount, totalTokens: tokens.length,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        const osRes = await axios.post("https://api.onesignal.com/notifications", payload, {
+            headers: { "Content-Type": "application/json; charset=utf-8", "Authorization": "Key " + ONESIGNAL_API_KEY }
         });
-
-        console.log(`📢 Notification sent: ${successCount}/${tokens.length} to ${targetDesc}`);
-        return res.json({ success: true, sent: successCount, failed: failCount, total: tokens.length });
+        console.log("📢 OneSignal:", JSON.stringify(osRes.data));
+        return res.json({ success: true, recipients: osRes.data.recipients || 0, id: osRes.data.id });
     } catch (error) {
-        console.error("Send notification error:", error.message);
-        return res.status(500).json({ error: error.message || "Internal server error" });
+        console.error("Send notification error:", error.response?.data || error.message);
+        return res.status(500).json({ success: false, error: error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message });
     }
 });
 
 // ═══════════════════════════════════════════════════════════
 // START SERVER
-// Cloud Run provides PORT env variable
 // ═══════════════════════════════════════════════════════════
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
