@@ -10,7 +10,8 @@ firebase.initializeApp({
 const auth=firebase.auth(), db=firebase.firestore();
 const ADMIN_EMAILS=["sensixpertadmin@gmail.com","admin@sensixpert.com","mrhexira@gmail.com"];
 const BACKEND="https://sensixpert-backend.onrender.com";
-let revenueChart,usersChart,loginAttempts=0,lockoutUntil=0;
+let revenueChart,usersChart,revenueChart2,planChart2;
+let loginAttempts=0,lockoutUntil=0;
 
 // ─── AUTH (SECURE) ───
 async function login(){
@@ -52,13 +53,28 @@ function showSection(name,el){
   if(name==='notifications')loadNotifications();
   if(name==='pricing')loadPricing();
   if(name==='policies')loadPolicies();
+  if(name==='analytics')renderAnalytics();
 }
 
-// ─── REFRESH ALL ───
+// ─── REFRESH ALL (sequential to avoid race condition) ───
+let allUsers=[],allPayments=[];
 async function refreshAll(){
   const btn=document.querySelector('.btn-refresh');
   if(btn){btn.classList.add('spinning');setTimeout(()=>btn.classList.remove('spinning'),600)}
-  await Promise.all([loadDashboard(),loadUsers(),loadPayments(),checkServer()]);
+  try{
+    // Load data sequentially to avoid race conditions on shared arrays
+    const uSnap=await db.collection('users').get();
+    const pSnap=await db.collection('payments').orderBy('createdAt','desc').get();
+    allUsers=[];allPayments=[];
+    uSnap.forEach(d=>{allUsers.push({id:d.id,...d.data()})});
+    pSnap.forEach(d=>{allPayments.push({id:d.id,...d.data()})});
+
+    // Now render everything from the loaded data
+    renderDashboard();
+    renderUsers();
+    renderPayments();
+    checkServer();
+  }catch(e){console.error('Refresh error:',e)}
 }
 
 // ─── SERVER HEALTH ───
@@ -77,15 +93,8 @@ async function checkServer(){
 }
 
 // ─── DASHBOARD ───
-let allUsers=[],allPayments=[];
-async function loadDashboard(){
+function renderDashboard(){
   try{
-    const uSnap=await db.collection('users').get();
-    const pSnap=await db.collection('payments').orderBy('createdAt','desc').get();
-    allUsers=[];allPayments=[];
-    uSnap.forEach(d=>{allUsers.push({id:d.id,...d.data()})});
-    pSnap.forEach(d=>{allPayments.push({id:d.id,...d.data()})});
-
     let active=0,totalRev=0,pending=0,todayRev=0;
     const today=new Date().toDateString();
     allUsers.forEach(u=>{const s=u.subscription||{};if(s.status==='active'&&s.endDate>Date.now())active++});
@@ -110,12 +119,12 @@ async function loadDashboard(){
       html+=`<tr><td>${p.id.substring(0,20)}</td><td>${(p.userId||'').substring(0,12)}..</td><td>${p.plan||'—'}</td><td>₹${p.amount||0}</td><td><span class="badge ${sc}">${p.status||'—'}</span></td><td>${date}</td></tr>`;
     });
     document.getElementById('recentPayments').innerHTML=html||'<tr><td colspan="6" class="empty">No payments yet</td></tr>';
-    renderCharts();
+    renderCharts('revenueChart','planChart');
   }catch(e){console.error('Dashboard error:',e)}
 }
 
-// ─── CHARTS ───
-function renderCharts(){
+// ─── CHARTS (reusable for both dashboard and analytics) ───
+function renderCharts(revenueCanvasId, planCanvasId){
   // Revenue by day (last 7 days)
   const days=[],revData=[];
   for(let i=6;i>=0;i--){
@@ -130,25 +139,56 @@ function renderCharts(){
     });
     revData.push(dayRev);
   }
-  const ctx1=document.getElementById('revenueChart');
+  const ctx1=document.getElementById(revenueCanvasId);
   if(ctx1){
-    if(revenueChart)revenueChart.destroy();
-    revenueChart=new Chart(ctx1,{type:'bar',data:{labels:days,datasets:[{label:'Revenue ₹',data:revData,backgroundColor:'rgba(255,30,30,0.6)',borderRadius:8,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#666'},grid:{display:false}},y:{ticks:{color:'#666',callback:v=>'₹'+v},grid:{color:'#1a1a20'}}}}});
+    // Destroy existing chart on this canvas
+    if(revenueCanvasId==='revenueChart'&&revenueChart)revenueChart.destroy();
+    if(revenueCanvasId==='revenueChart2'&&revenueChart2)revenueChart2.destroy();
+    const chart=new Chart(ctx1,{type:'bar',data:{labels:days,datasets:[{label:'Revenue ₹',data:revData,backgroundColor:'rgba(255,30,30,0.6)',borderRadius:8,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#666'},grid:{display:false}},y:{ticks:{color:'#666',callback:v=>'₹'+v},grid:{color:'#1a1a20'}}}}});
+    if(revenueCanvasId==='revenueChart')revenueChart=chart;
+    else revenueChart2=chart;
   }
   // Plan distribution pie
   const plans={};
   allUsers.forEach(u=>{const p=(u.subscription||{}).plan||'none';plans[p]=(plans[p]||0)+1});
-  const ctx2=document.getElementById('planChart');
+  const ctx2=document.getElementById(planCanvasId);
   if(ctx2){
-    if(usersChart)usersChart.destroy();
-    usersChart=new Chart(ctx2,{type:'doughnut',data:{labels:Object.keys(plans),datasets:[{data:Object.values(plans),backgroundColor:['#ff1e1e','#00e676','#448aff','#ffc107','#b388ff','#666']}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{color:'#888',padding:12}}}}});
+    if(planCanvasId==='planChart'&&usersChart)usersChart.destroy();
+    if(planCanvasId==='planChart2'&&planChart2)planChart2.destroy();
+    const chart=new Chart(ctx2,{type:'doughnut',data:{labels:Object.keys(plans),datasets:[{data:Object.values(plans),backgroundColor:['#ff1e1e','#00e676','#448aff','#ffc107','#b388ff','#666']}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{color:'#888',padding:12}}}}});
+    if(planCanvasId==='planChart')usersChart=chart;
+    else planChart2=chart;
   }
 }
 
+// ─── ANALYTICS ───
+function renderAnalytics(){
+  // Render charts for analytics section
+  renderCharts('revenueChart2','planChart2');
+
+  // Calculate analytics stats
+  const successPayments=allPayments.filter(p=>p.status==='Success'||p.status==='success');
+  const totalRev=successPayments.reduce((sum,p)=>sum+(p.amount||0),0);
+  const avgPerDay=Math.round(totalRev/7);
+
+  document.getElementById('avgRevDay').textContent='₹'+avgPerDay.toLocaleString('en-IN');
+  document.getElementById('totalPayCount').textContent=allPayments.length;
+
+  const successRate=allPayments.length?Math.round(successPayments.length/allPayments.length*100):0;
+  document.getElementById('successRate').textContent=successRate+'%';
+
+  // Most popular plan
+  const planCounts={};
+  successPayments.forEach(p=>{const plan=p.plan||'unknown';planCounts[plan]=(planCounts[plan]||0)+1});
+  let topPlan='—',topCount=0;
+  Object.entries(planCounts).forEach(([plan,count])=>{if(count>topCount){topCount=count;topPlan=plan}});
+  const planNames={'7days':'7 Days','monthly':'1 Month','3months':'3 Months'};
+  document.getElementById('topPlan').textContent=planNames[topPlan]||topPlan;
+}
+
 // ─── USERS ───
-async function loadUsers(){
+function renderUsers(){
   try{
-    if(!allUsers.length){const s=await db.collection('users').get();allUsers=[];s.forEach(d=>allUsers.push({id:d.id,...d.data()}))}
     let html='',subs=[];
     allUsers.forEach(u=>{
       const sub=u.subscription||{};
@@ -170,9 +210,8 @@ async function loadUsers(){
 }
 
 // ─── PAYMENTS ───
-async function loadPayments(){
+function renderPayments(){
   try{
-    if(!allPayments.length){const s=await db.collection('payments').orderBy('createdAt','desc').get();allPayments=[];s.forEach(d=>allPayments.push({id:d.id,...d.data()}))}
     let html='';
     allPayments.forEach(p=>{
       const date=p.createdAt?new Date(p.createdAt.seconds*1000).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'}):'—';
@@ -201,12 +240,12 @@ async function confirmActivate(){
     'subscription.endDate':now+(daysMap[plan]*86400000),'subscription.status':'active'
   });
   closeModal();showToast('✅ Subscription activated!');
-  allUsers=[];await refreshAll();
+  allUsers=[];allPayments=[];await refreshAll();
 }
 async function deactivateSub(uid){
   if(!confirm('Deactivate this subscription?'))return;
   await db.collection('users').doc(uid).update({'subscription.status':'inactive'});
-  showToast('Subscription deactivated');allUsers=[];await refreshAll();
+  showToast('Subscription deactivated');allUsers=[];allPayments=[];await refreshAll();
 }
 async function extendSub(uid){
   const days=prompt('Kitne din extend karna hai?','30');
@@ -215,7 +254,7 @@ async function extendSub(uid){
   const currentEnd=(user?.subscription?.endDate)||Date.now();
   const newEnd=currentEnd+(parseInt(days)*86400000);
   await db.collection('users').doc(uid).update({'subscription.endDate':newEnd});
-  showToast(`✅ Extended by ${days} days`);allUsers=[];await refreshAll();
+  showToast(`✅ Extended by ${days} days`);allUsers=[];allPayments=[];await refreshAll();
 }
 function viewUser(uid){
   const u=allUsers.find(x=>x.id===uid);if(!u)return;
@@ -270,11 +309,12 @@ async function sendNotification(){
 async function loadNotifications(){
   try{const snap=await db.collection('notifications').orderBy('createdAt','desc').limit(20).get();
   let html='';snap.forEach(d=>{const n=d.data();const date=n.createdAt?new Date(n.createdAt.seconds*1000).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'}):'—';
-  const tgt={'all':'📢 All','non_subscribers':'🔓 Non-Sub','subscribers':'👑 Subs','specific':'🎯 '+((n.specificUser||'').substring(0,10))}[n.target]||n.target;
-  html+=`<tr><td>${n.title}</td><td>${n.message.substring(0,40)}</td><td>${tgt}</td><td>${date}</td><td><button class="btn-action" onclick="deleteNotif('${d.id}')">🗑️</button></td></tr>`});
+  const targetLabels={'all':'📢 All Users','non_subscribers':'🔓 Non-Subscribers','subscribers':'👑 Subscribers','specific':'🎯 '+(n.specificUser||'').substring(0,10)};
+  const tgt=targetLabels[n.target]||n.target;
+  html+=`<tr><td>${n.title}</td><td>${n.message.substring(0,40)}${n.message.length>40?'...':''}</td><td>${tgt}</td><td>${date}</td><td><button class="btn-action" onclick="deleteNotif('${d.id}')">🗑️</button></td></tr>`});
   document.getElementById('notifBody').innerHTML=html||'<tr><td colspan="5" class="empty">No notifications sent</td></tr>'}catch(e){console.error(e)}
 }
-async function deleteNotif(id){if(!confirm('Delete?'))return;await db.collection('notifications').doc(id).delete();showToast('Deleted');loadNotifications()}
+async function deleteNotif(id){if(!confirm('Delete this notification?'))return;await db.collection('notifications').doc(id).delete();showToast('🗑️ Notification deleted');loadNotifications()}
 
 // ─── PRICING ───
 async function loadPricing(){
@@ -286,12 +326,20 @@ async function loadPricing(){
   }}catch(e){console.error(e)}
 }
 async function savePricing(){
-  await db.collection('config').doc('pricing').set({
+  const pricing={
     '7days':{price:parseInt(document.getElementById('price7days').value),days:parseInt(document.getElementById('days7days').value)},
     'monthly':{price:parseInt(document.getElementById('priceMonthly').value),days:parseInt(document.getElementById('daysMonthly').value)},
     '3months':{price:parseInt(document.getElementById('price3months').value),days:parseInt(document.getElementById('days3months').value)},
     updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-  });showToast('💰 Pricing saved!')
+  };
+  // Validate
+  for(const[key,val] of Object.entries(pricing)){
+    if(key==='updatedAt')continue;
+    if(!val.price||val.price<=0){showToast('❌ Invalid price for '+key);return}
+    if(!val.days||val.days<=0){showToast('❌ Invalid days for '+key);return}
+  }
+  await db.collection('config').doc('pricing').set(pricing);
+  showToast('💰 Pricing saved! Note: Update backend PLANS config to sync.');
 }
 
 // ─── POLICIES ───
@@ -307,7 +355,7 @@ async function savePolicy(type){
   if(!text){showToast('❌ Enter content');return}
   const update={};update[type]=text;update[type+'UpdatedAt']=firebase.firestore.FieldValue.serverTimestamp();
   await db.collection('config').doc('policies').set(update,{merge:true});
-  showToast('📜 '+type.charAt(0).toUpperCase()+type.slice(1)+' saved!')
+  showToast('📜 '+type.charAt(0).toUpperCase()+type.slice(1)+' saved!');
 }
 
 // Auto-refresh every 60s
