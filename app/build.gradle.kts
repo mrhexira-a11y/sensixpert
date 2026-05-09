@@ -55,9 +55,8 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.firestore.ktx)
+    implementation(libs.firebase.messaging.ktx)
 
-    // OneSignal Push Notifications
-    implementation("com.onesignal:OneSignal:5.1.20")
 
     // Navigation
     implementation(libs.navigation.compose)
