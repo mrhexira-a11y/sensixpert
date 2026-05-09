@@ -31,7 +31,7 @@ enum class AppScreen {
     LOGIN, REGISTER,
     BOOSTER, SENSITIVITY_GUNS, SENSITIVITY_DEVICE,
     PRIVACY_POLICY, TERMS_CONDITIONS,
-    SUBSCRIPTION
+    SUBSCRIPTION, SUPPORT
 }
 
 class MainActivity : ComponentActivity() {
@@ -215,6 +215,9 @@ private fun MainAppFlow(
                 onNavigateToSubscription = {
                     currentScreen = AppScreen.SUBSCRIPTION
                 },
+                onNavigateToSupport = {
+                    currentScreen = AppScreen.SUPPORT
+                },
             )
             AppScreen.SENSITIVITY_GUNS -> SensitivityScreen(
                 modifier = Modifier.fillMaxSize(),
@@ -252,6 +255,14 @@ private fun MainAppFlow(
             AppScreen.SUBSCRIPTION -> SubscriptionScreen(
                 subscriptionViewModel = subscriptionViewModel,
                 userId = authViewModel.getUserId(),
+                onNavigateBack = {
+                    currentScreen = AppScreen.BOOSTER
+                }
+            )
+            AppScreen.SUPPORT -> SupportScreen(
+                userId = authViewModel.getUserId(),
+                userName = authViewModel.getUserName(),
+                userEmail = authViewModel.getUserEmail(),
                 onNavigateBack = {
                     currentScreen = AppScreen.BOOSTER
                 }

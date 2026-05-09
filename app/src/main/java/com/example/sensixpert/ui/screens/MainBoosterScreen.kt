@@ -45,6 +45,7 @@ fun MainBoosterScreen(
     onNavigateToPrivacyPolicy: () -> Unit = {},
     onNavigateToTerms: () -> Unit = {},
     onNavigateToSubscription: () -> Unit = {},
+    onNavigateToSupport: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -144,6 +145,15 @@ fun MainBoosterScreen(
                     onClick = {
                         scope.launch { drawerState.close() }
                         onNavigateToTerms()
+                    }
+                )
+
+                // ── Customer Support ──
+                DrawerMenuItem(
+                    label = "💬 Customer Support",
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        onNavigateToSupport()
                     }
                 )
 

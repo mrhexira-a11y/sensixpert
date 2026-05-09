@@ -52,12 +52,13 @@ function showSection(name,el){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('sec-'+name).classList.add('active');
   if(el)el.classList.add('active');
-  const titles={dashboard:'Dashboard',users:'Users',payments:'Payments',subscriptions:'Subscriptions',analytics:'Analytics',notifications:'Notifications',pricing:'Pricing',policies:'Policies'};
+  const titles={dashboard:'Dashboard',users:'Users',payments:'Payments',subscriptions:'Subscriptions',analytics:'Analytics',notifications:'Notifications',pricing:'Pricing',policies:'Policies',support:'Support'};
   document.getElementById('pageTitle').textContent=titles[name]||name;
   if(name==='notifications')loadNotifications();
   if(name==='pricing')loadPricing();
   if(name==='policies')loadPolicies();
   if(name==='analytics')renderAnalytics();
+  if(name==='support')loadSupportChats();
 }
 
 // ─── REFRESH ALL (sequential to avoid race condition) ───
@@ -394,3 +395,162 @@ async function savePolicy(type){
 
 // Auto-refresh every 60s
 setInterval(()=>{allUsers=[];allPayments=[];refreshAll()},60000);
+
+// ─── SUPPORT CHAT ───
+let supportChats=[],activeChatUserId=null,chatListener=null;
+
+async function loadSupportChats(){
+  try{
+    const snap=await db.collection('support_chats').orderBy('lastMessageTime','desc').get();
+    supportChats=[];
+    snap.forEach(d=>{supportChats.push({id:d.id,...d.data()})});
+    renderSupportChatList();
+  }catch(e){console.error('Load support chats error:',e)}
+}
+
+function renderSupportChatList(filter=''){
+  const container=document.getElementById('supportChatList');
+  if(!container)return;
+  const filtered=filter?supportChats.filter(c=>
+    (c.userName||'').toLowerCase().includes(filter.toLowerCase())||
+    (c.userEmail||'').toLowerCase().includes(filter.toLowerCase())
+  ):supportChats;
+  
+  if(filtered.length===0){
+    container.innerHTML='<div class="support-empty">No conversations yet</div>';
+    return;
+  }
+  let html='';
+  filtered.forEach(chat=>{
+    const unread=chat.unreadByAdmin||0;
+    const time=chat.lastMessageTime?formatTime(chat.lastMessageTime):'';
+    const isActive=activeChatUserId===chat.id;
+    const lastMsg=(chat.lastMessage||'').substring(0,35)+(chat.lastMessage?.length>35?'...':'');
+    const sender=chat.lastSender==='admin'?'You: ':'';
+    html+=`<div class="support-chat-item${isActive?' active':''}" onclick="openSupportChat('${chat.id}')">
+      <div class="support-chat-avatar">${(chat.userName||'U').charAt(0).toUpperCase()}</div>
+      <div class="support-chat-info">
+        <div class="support-chat-name">${chat.userName||'User'}</div>
+        <div class="support-chat-preview">${sender}${lastMsg||'No messages'}</div>
+      </div>
+      <div class="support-chat-meta">
+        <div class="support-chat-time">${time}</div>
+        ${unread>0?`<div class="support-chat-badge">${unread}</div>`:''}
+      </div>
+    </div>`;
+  });
+  container.innerHTML=html;
+}
+
+function formatTime(ts){
+  if(!ts)return '';
+  const d=new Date(typeof ts==='number'?ts:ts.seconds?ts.seconds*1000:ts);
+  const now=new Date();
+  if(d.toDateString()===now.toDateString())return d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+  return d.toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+}
+
+function filterSupportChats(q){renderSupportChatList(q)}
+
+async function openSupportChat(userId){
+  activeChatUserId=userId;
+  const chat=supportChats.find(c=>c.id===userId);
+  
+  document.getElementById('chatUserName').textContent=chat?.userName||'User';
+  document.getElementById('chatUserEmail').textContent=chat?.userEmail||userId;
+  document.getElementById('supportReplyBar').style.display='flex';
+  
+  // Refresh the list to show active state
+  renderSupportChatList(document.getElementById('supportSearchInput')?.value||'');
+  
+  // Remove previous listener
+  if(chatListener)chatListener();
+  
+  // Real-time listener for messages
+  chatListener=db.collection('support_chats').doc(userId)
+    .collection('messages').orderBy('timestamp','asc')
+    .onSnapshot(snap=>{
+      let html='';
+      snap.forEach(doc=>{
+        const m=doc.data();
+        const isAdmin=m.sender==='admin';
+        const time=m.timestamp?new Date(m.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):'';
+        html+=`<div class="support-msg ${isAdmin?'admin':'user'}">
+          <div class="support-msg-bubble">
+            <div class="support-msg-text">${escapeHtml(m.text)}</div>
+            <div class="support-msg-time">${time}${isAdmin?' ✓':''}</div>
+          </div>
+        </div>`;
+      });
+      if(!html)html='<div class="support-empty-chat"><p>No messages yet</p></div>';
+      const container=document.getElementById('supportMessages');
+      container.innerHTML=html;
+      container.scrollTop=container.scrollHeight;
+      
+      // Mark user messages as read
+      markUserMessagesRead(userId);
+    });
+}
+
+function escapeHtml(text){
+  const div=document.createElement('div');
+  div.textContent=text;
+  return div.innerHTML;
+}
+
+async function markUserMessagesRead(userId){
+  try{
+    const snap=await db.collection('support_chats').doc(userId)
+      .collection('messages').where('sender','==','user').where('read','==',false).get();
+    if(snap.empty)return;
+    const batch=db.batch();
+    snap.forEach(doc=>{batch.update(doc.ref,{read:true})});
+    await batch.commit();
+    // Reset unread count
+    await db.collection('support_chats').doc(userId).update({unreadByAdmin:0});
+    // Refresh chat list badge
+    const chatIdx=supportChats.findIndex(c=>c.id===userId);
+    if(chatIdx>=0)supportChats[chatIdx].unreadByAdmin=0;
+    renderSupportChatList(document.getElementById('supportSearchInput')?.value||'');
+  }catch(e){console.error('Mark read error:',e)}
+}
+
+async function sendAdminReply(){
+  if(!activeChatUserId)return;
+  const input=document.getElementById('adminReplyInput');
+  const text=input.value.trim();
+  if(!text)return;
+  input.value='';
+  
+  try{
+    // Add message
+    await db.collection('support_chats').doc(activeChatUserId)
+      .collection('messages').add({
+        text:text,
+        sender:'admin',
+        timestamp:Date.now(),
+        read:false
+      });
+    
+    // Update chat metadata
+    await db.collection('support_chats').doc(activeChatUserId).update({
+      lastMessage:text,
+      lastMessageTime:Date.now(),
+      lastSender:'admin',
+      unreadByUser:firebase.firestore.FieldValue.increment(1),
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    
+    // Refresh local data
+    const chatIdx=supportChats.findIndex(c=>c.id===activeChatUserId);
+    if(chatIdx>=0){
+      supportChats[chatIdx].lastMessage=text;
+      supportChats[chatIdx].lastMessageTime=Date.now();
+      supportChats[chatIdx].lastSender='admin';
+    }
+    renderSupportChatList(document.getElementById('supportSearchInput')?.value||'');
+  }catch(e){
+    console.error('Send reply error:',e);
+    showToast('❌ Failed to send reply');
+  }
+}

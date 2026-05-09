@@ -31,6 +31,7 @@
   <div class="nav-item" onclick="showSection('notifications',this)"><span class="icon">📢</span><span>Notifications</span></div>
   <div class="nav-item" onclick="showSection('pricing',this)"><span class="icon">💰</span><span>Pricing</span></div>
   <div class="nav-item" onclick="showSection('policies',this)"><span class="icon">📜</span><span>Policies</span></div>
+  <div class="nav-item" onclick="showSection('support',this)"><span class="icon">💬</span><span>Support</span></div>
   <div class="sidebar-footer">
     <div class="server-status"><div class="status-dot" id="serverDot"></div><span id="serverText">Checking...</span></div>
   </div>
@@ -173,6 +174,48 @@
         <h4>📋 Terms & Conditions</h4>
         <textarea id="termsText" rows="10" placeholder="Enter your Terms & Conditions..." style="width:100%;padding:16px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;resize:vertical;line-height:1.6"></textarea>
         <button class="btn-primary" onclick="savePolicy('terms')" style="margin-top:12px;width:auto;padding:12px 32px">💾 Save Terms & Conditions</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUPPORT -->
+  <div class="section" id="sec-support">
+    <div class="support-layout">
+      <!-- Chat List -->
+      <div class="support-list-panel">
+        <div class="support-list-header">
+          <h4>💬 Support Chats</h4>
+          <button class="btn-refresh" onclick="loadSupportChats()" title="Refresh">🔄</button>
+        </div>
+        <div class="support-search">
+          <input type="text" placeholder="🔍 Search users..." oninput="filterSupportChats(this.value)" id="supportSearchInput">
+        </div>
+        <div class="support-chat-list" id="supportChatList">
+          <div class="support-empty">Loading chats...</div>
+        </div>
+      </div>
+      <!-- Chat View -->
+      <div class="support-chat-panel" id="supportChatPanel">
+        <div class="support-chat-header" id="supportChatHeader">
+          <div class="support-user-info">
+            <div class="support-avatar">💬</div>
+            <div>
+              <div class="support-user-name" id="chatUserName">Select a conversation</div>
+              <div class="support-user-email" id="chatUserEmail">Choose from the list on the left</div>
+            </div>
+          </div>
+        </div>
+        <div class="support-messages" id="supportMessages">
+          <div class="support-empty-chat">
+            <div style="font-size:48px;margin-bottom:16px">💬</div>
+            <h3>No conversation selected</h3>
+            <p>Select a user from the list to view their messages</p>
+          </div>
+        </div>
+        <div class="support-reply-bar" id="supportReplyBar" style="display:none">
+          <input type="text" id="adminReplyInput" placeholder="Type your reply..." onkeydown="if(event.key==='Enter')sendAdminReply()">
+          <button class="btn-send" onclick="sendAdminReply()">➤ Send</button>
+        </div>
       </div>
     </div>
   </div>
