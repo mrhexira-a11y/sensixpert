@@ -55,6 +55,7 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.firestore.ktx)
+    implementation("com.google.firebase:firebase-messaging-ktx")
 
     // Navigation
     implementation(libs.navigation.compose)

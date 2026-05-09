@@ -308,6 +308,79 @@ app.get("/check-subscription/:userId", async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
+// POST /send-notification
+// Called by Admin Panel to send push notifications via FCM
+// ═══════════════════════════════════════════════════════════
+app.post("/send-notification", async (req, res) => {
+    try {
+        const { title, message, target, specificUser, adminEmail } = req.body;
+
+        if (!title || !message) {
+            return res.status(400).json({ error: "title and message are required" });
+        }
+
+        let tokens = [];
+        let targetDesc = "";
+
+        if (target === "specific" && specificUser) {
+            let userDoc = await db.collection("users").doc(specificUser).get();
+            if (!userDoc.exists) {
+                const emailQuery = await db.collection("users").where("email", "==", specificUser).limit(1).get();
+                if (!emailQuery.empty) userDoc = emailQuery.docs[0];
+            }
+            if (userDoc && userDoc.exists) {
+                const token = userDoc.data().fcmToken;
+                if (token) tokens.push(token);
+            }
+            targetDesc = "specific: " + specificUser;
+        } else {
+            const usersSnap = await db.collection("users").get();
+            usersSnap.forEach(doc => {
+                const data = doc.data();
+                const token = data.fcmToken;
+                if (!token) return;
+                const sub = data.subscription || {};
+                const isActive = sub.status === "active" && sub.endDate > Date.now();
+                if (target === "subscribers" && isActive) tokens.push(token);
+                else if (target === "non_subscribers" && !isActive) tokens.push(token);
+                else if (target === "all") tokens.push(token);
+            });
+            targetDesc = target;
+        }
+
+        if (tokens.length === 0) {
+            return res.json({ success: true, sent: 0, message: "No devices with FCM tokens found" });
+        }
+
+        let successCount = 0, failCount = 0;
+        const batchSize = 500;
+        for (let i = 0; i < tokens.length; i += batchSize) {
+            const batch = tokens.slice(i, i + batchSize);
+            const response = await admin.messaging().sendEachForMulticast({
+                notification: { title, body: message },
+                data: { title, message, target: target || "all" },
+                tokens: batch,
+            });
+            successCount += response.successCount;
+            failCount += response.failureCount;
+        }
+
+        await db.collection("notifications").add({
+            title, message, target: target || "all",
+            specificUser: specificUser || null,
+            sent: successCount, failed: failCount, totalTokens: tokens.length,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        console.log(`📢 Notification sent: ${successCount}/${tokens.length} to ${targetDesc}`);
+        return res.json({ success: true, sent: successCount, failed: failCount, total: tokens.length });
+    } catch (error) {
+        console.error("Send notification error:", error.message);
+        return res.status(500).json({ error: error.message || "Internal server error" });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════
 // START SERVER
 // Cloud Run provides PORT env variable
 // ═══════════════════════════════════════════════════════════

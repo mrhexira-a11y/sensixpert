@@ -300,11 +300,37 @@ async function sendNotification(){
   const msg=document.getElementById('notifMessage').value;
   const target=document.getElementById('notifTarget').value;
   if(!title||!msg){showToast('❌ Title and message required');return}
-  const data={title,message:msg,target,createdAt:firebase.firestore.FieldValue.serverTimestamp(),read:false};
-  if(target==='specific'){const uid=document.getElementById('notifSpecificUser').value;if(!uid){showToast('❌ Enter user');return}data.specificUser=uid}
-  await db.collection('notifications').add(data);
-  document.getElementById('notifTitle').value='';document.getElementById('notifMessage').value='';
-  showToast('📢 Notification sent!');loadNotifications();
+  const specificUser=target==='specific'?document.getElementById('notifSpecificUser').value:'';
+  if(target==='specific'&&!specificUser){showToast('❌ Enter user email or UID');return}
+
+  // Show sending state
+  showToast('📤 Sending notification...');
+
+  try{
+    // Call backend to send real push notification via FCM
+    const response=await fetch(BACKEND+'/send-notification',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({title,message:msg,target,specificUser,adminEmail:auth.currentUser?.email||'admin'})
+    });
+    const result=await response.json();
+
+    if(result.success){
+      document.getElementById('notifTitle').value='';
+      document.getElementById('notifMessage').value='';
+      if(result.sent>0){
+        showToast(`📢 Notification sent to ${result.sent} device(s)!`);
+      }else{
+        showToast('⚠️ No devices found with push tokens. Users need to open the app first.');
+      }
+      loadNotifications();
+    }else{
+      showToast('❌ Failed: '+(result.error||'Unknown error'));
+    }
+  }catch(e){
+    console.error('Send notification error:',e);
+    showToast('❌ Error sending notification: '+e.message);
+  }
 }
 async function loadNotifications(){
   try{const snap=await db.collection('notifications').orderBy('createdAt','desc').limit(20).get();
