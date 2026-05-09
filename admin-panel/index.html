@@ -29,8 +29,6 @@
   <div class="nav-item" onclick="showSection('subscriptions',this)"><span class="icon">👑</span><span>Subscriptions</span></div>
   <div class="nav-item" onclick="showSection('analytics',this)"><span class="icon">📈</span><span>Analytics</span></div>
   <div class="nav-item" onclick="showSection('notifications',this)"><span class="icon">📢</span><span>Notifications</span></div>
-  <div class="nav-item" onclick="showSection('pricing',this)"><span class="icon">💰</span><span>Pricing</span></div>
-  <div class="nav-item" onclick="showSection('policies',this)"><span class="icon">📜</span><span>Policies</span></div>
   <div class="nav-item" onclick="showSection('support',this)"><span class="icon">💬</span><span>Support</span></div>
   <div class="sidebar-footer">
     <div class="server-status"><div class="status-dot" id="serverDot"></div><span id="serverText">Checking...</span></div>
@@ -135,46 +133,6 @@
       <div class="table-header"><h3>Sent Notifications</h3></div>
       <table><thead><tr><th>Title</th><th>Message</th><th>Target</th><th>Date</th><th>Actions</th></tr></thead>
       <tbody id="notifBody"><tr><td colspan="5" class="loading">Loading...</td></tr></tbody></table>
-    </div>
-  </div>
-
-  <!-- PRICING -->
-  <div class="section" id="sec-pricing">
-    <div class="settings-grid">
-      <div class="settings-card">
-        <h4>💰 7 Days Plan (Basic)</h4>
-        <div class="form-group"><label>Price (₹)</label><input type="number" id="price7days" value="49" style="width:100%;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:18px;font-weight:700"></div>
-        <div class="form-group"><label>Duration (Days)</label><input type="number" id="days7days" value="7" style="width:100%;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px"></div>
-      </div>
-      <div class="settings-card">
-        <h4>💰 1 Month Plan (Standard)</h4>
-        <div class="form-group"><label>Price (₹)</label><input type="number" id="priceMonthly" value="169" style="width:100%;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:18px;font-weight:700"></div>
-        <div class="form-group"><label>Duration (Days)</label><input type="number" id="daysMonthly" value="30" style="width:100%;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px"></div>
-      </div>
-      <div class="settings-card">
-        <h4>💰 3 Months Plan (Premium)</h4>
-        <div class="form-group"><label>Price (₹)</label><input type="number" id="price3months" value="399" style="width:100%;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:18px;font-weight:700"></div>
-        <div class="form-group"><label>Duration (Days)</label><input type="number" id="days3months" value="90" style="width:100%;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px"></div>
-      </div>
-      <div class="settings-card" style="display:flex;align-items:end">
-        <button class="btn-primary" onclick="savePricing()" style="width:100%">💾 SAVE PRICING</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- POLICIES -->
-  <div class="section" id="sec-policies">
-    <div class="settings-grid">
-      <div class="settings-card" style="grid-column:span 2">
-        <h4>🔒 Privacy Policy</h4>
-        <textarea id="privacyText" rows="10" placeholder="Enter your Privacy Policy..." style="width:100%;padding:16px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;resize:vertical;line-height:1.6"></textarea>
-        <button class="btn-primary" onclick="savePolicy('privacy')" style="margin-top:12px;width:auto;padding:12px 32px">💾 Save Privacy Policy</button>
-      </div>
-      <div class="settings-card" style="grid-column:span 2">
-        <h4>📋 Terms & Conditions</h4>
-        <textarea id="termsText" rows="10" placeholder="Enter your Terms & Conditions..." style="width:100%;padding:16px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;resize:vertical;line-height:1.6"></textarea>
-        <button class="btn-primary" onclick="savePolicy('terms')" style="margin-top:12px;width:auto;padding:12px 32px">💾 Save Terms & Conditions</button>
-      </div>
     </div>
   </div>
 
