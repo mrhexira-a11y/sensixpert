@@ -137,48 +137,27 @@
     </div>
   </div>
 
-  <!-- SUPPORT -->
+  <!-- SUPPORT LINK -->
   <div class="section" id="sec-support">
-    <div class="support-layout">
-      <!-- Chat List -->
-      <div class="support-list-panel">
-        <div class="support-list-header">
-          <h4>💬 Support Chats</h4>
-          <div style="display:flex;gap:6px">
-            <button class="btn-refresh" onclick="loadSupportChats()" title="Refresh">🔄</button>
-            <button class="btn-action" onclick="deleteAllSupportChats()" title="Delete All Chats" style="color:#ff4444;border-color:#ff4444;font-size:12px;padding:6px 10px">🗑️ All</button>
-          </div>
-        </div>
-        <div class="support-search">
-          <input type="text" placeholder="🔍 Search users..." oninput="filterSupportChats(this.value)" id="supportSearchInput">
-        </div>
-        <div class="support-chat-list" id="supportChatList">
-          <div class="support-empty">Loading chats...</div>
-        </div>
+    <div class="card" style="max-width:600px">
+      <h3 style="margin-bottom:16px">🔗 Support Contact Link</h3>
+      <p style="color:#999;font-size:13px;margin-bottom:20px">Set the link that opens when users tap "Contact Now" in the app. You can use Telegram, Instagram, WhatsApp, or any URL.</p>
+      <div class="form-group" style="margin-bottom:14px">
+        <label style="color:#ccc;font-size:12px;margin-bottom:6px;display:block">Button Label</label>
+        <input type="text" id="supportLabel" placeholder="e.g. Contact us on Telegram" style="width:100%;padding:10px 14px;background:#1a1a1a;border:1px solid #333;border-radius:8px;color:#fff;font-size:14px">
       </div>
-      <!-- Chat View -->
-      <div class="support-chat-panel" id="supportChatPanel">
-        <div class="support-chat-header" id="supportChatHeader">
-          <div class="support-user-info">
-            <div class="support-avatar">💬</div>
-            <div>
-              <div class="support-user-name" id="chatUserName">Select a conversation</div>
-              <div class="support-user-email" id="chatUserEmail">Choose from the list on the left</div>
-            </div>
-          </div>
-          <button class="btn-delete-chat" id="btnDeleteChat" onclick="deleteSupportChat()" style="display:none" title="Delete entire chat">🗑️ Delete Chat</button>
-        </div>
-        <div class="support-messages" id="supportMessages">
-          <div class="support-empty-chat">
-            <div style="font-size:48px;margin-bottom:16px">💬</div>
-            <h3>No conversation selected</h3>
-            <p>Select a user from the list to view their messages</p>
-          </div>
-        </div>
-        <div class="support-reply-bar" id="supportReplyBar" style="display:none">
-          <input type="text" id="adminReplyInput" placeholder="Type your reply..." onkeydown="if(event.key==='Enter')sendAdminReply()">
-          <button class="btn-send" onclick="sendAdminReply()">➤ Send</button>
-        </div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label style="color:#ccc;font-size:12px;margin-bottom:6px;display:block">Support Link URL</label>
+        <input type="text" id="supportLink" placeholder="e.g. https://t.me/sensixpert" style="width:100%;padding:10px 14px;background:#1a1a1a;border:1px solid #333;border-radius:8px;color:#fff;font-size:14px">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="btn-primary" onclick="saveSupportLink()">💾 Save Link</button>
+        <button class="btn-action" onclick="testSupportLink()" style="font-size:13px">🔗 Test Link</button>
+      </div>
+      <div id="supportLinkStatus" style="margin-top:12px;font-size:12px;color:#888"></div>
+      <div style="margin-top:20px;padding:14px;background:#111;border-radius:10px;border:1px solid #222">
+        <p style="color:#666;font-size:11px;margin-bottom:6px">CURRENT LINK PREVIEW</p>
+        <p id="supportLinkPreview" style="color:#4fc3f7;font-size:13px;word-break:break-all">Loading...</p>
       </div>
     </div>
   </div>

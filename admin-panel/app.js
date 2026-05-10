@@ -58,7 +58,7 @@ function showSection(name,el){
   if(name==='pricing')loadPricing();
   if(name==='policies')loadPolicies();
   if(name==='analytics')renderAnalytics();
-  if(name==='support')loadSupportChats();
+  if(name==='support')loadSupportLink();
 }
 
 // ─── REFRESH ALL (decoupled to handle partial permission errors) ───
@@ -432,253 +432,43 @@ async function savePolicy(type){
 setInterval(()=>{allUsers=[];allPayments=[];refreshAll()},60000);
 
 // ─── SUPPORT CHAT ───
-let supportChats=[],activeChatUserId=null,chatListener=null;
-
-async function loadSupportChats(){
+// ─── SUPPORT LINK EDITOR ───
+async function loadSupportLink(){
   try{
-    const snap=await db.collection('support_chats').orderBy('lastMessageTime','desc').get();
-    supportChats=[];
-    snap.forEach(d=>{supportChats.push({id:d.id,...d.data()})});
-    renderSupportChatList();
-  }catch(e){console.error('Load support chats error:',e)}
-}
-
-function renderSupportChatList(filter=''){
-  const container=document.getElementById('supportChatList');
-  if(!container)return;
-  const filtered=filter?supportChats.filter(c=>
-    (c.userName||'').toLowerCase().includes(filter.toLowerCase())||
-    (c.userEmail||'').toLowerCase().includes(filter.toLowerCase())
-  ):supportChats;
-  
-  if(filtered.length===0){
-    container.innerHTML='<div class="support-empty">No conversations yet</div>';
-    return;
-  }
-  let html='';
-  filtered.forEach(chat=>{
-    const unread=chat.unreadByAdmin||0;
-    const time=chat.lastMessageTime?formatTime(chat.lastMessageTime):'';
-    const isActive=activeChatUserId===chat.id;
-    const lastMsg=(chat.lastMessage||'').substring(0,35)+(chat.lastMessage?.length>35?'...':'');
-    const sender=chat.lastSender==='admin'?'You: ':'';
-    html+=`<div class="support-chat-item${isActive?' active':''}" onclick="openSupportChat('${chat.id}')">
-      <div class="support-chat-avatar">${(chat.userName||'U').charAt(0).toUpperCase()}</div>
-      <div class="support-chat-info">
-        <div class="support-chat-name">${chat.userName||'User'}</div>
-        <div class="support-chat-preview">${sender}${lastMsg||'No messages'}</div>
-      </div>
-      <div class="support-chat-meta">
-        <div class="support-chat-time">${time}</div>
-        ${unread>0?`<div class="support-chat-badge">${unread}</div>`:''}
-      </div>
-    </div>`;
-  });
-  container.innerHTML=html;
-}
-
-function formatTime(ts){
-  if(!ts)return '';
-  const d=new Date(typeof ts==='number'?ts:ts.seconds?ts.seconds*1000:ts);
-  const now=new Date();
-  if(d.toDateString()===now.toDateString())return d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
-  return d.toLocaleDateString('en-IN',{day:'numeric',month:'short'});
-}
-
-function filterSupportChats(q){renderSupportChatList(q)}
-
-function parseTimestamp(ts){
-  if(!ts)return null;
-  if(typeof ts==='number')return new Date(ts);
-  if(ts.seconds)return new Date(ts.seconds*1000);
-  if(ts.toDate)return ts.toDate();
-  const d=new Date(ts);
-  return isNaN(d.getTime())?null:d;
-}
-
-async function openSupportChat(userId){
-  activeChatUserId=userId;
-  const chat=supportChats.find(c=>c.id===userId);
-  
-  document.getElementById('chatUserName').textContent=chat?.userName||'User';
-  document.getElementById('chatUserEmail').textContent=chat?.userEmail||userId;
-  document.getElementById('supportReplyBar').style.display='flex';
-  document.getElementById('btnDeleteChat').style.display='inline-flex';
-  
-  // Show loading state
-  document.getElementById('supportMessages').innerHTML='<div class="support-empty-chat"><p>Loading messages...</p></div>';
-  
-  // Refresh the list to show active state
-  renderSupportChatList(document.getElementById('supportSearchInput')?.value||'');
-  
-  // Remove previous listener
-  if(chatListener)chatListener();
-  
-  // Real-time listener for messages
-  chatListener=db.collection('support_chats').doc(userId)
-    .collection('messages').orderBy('timestamp','asc')
-    .onSnapshot(snap=>{
-      let html='';
-      snap.forEach(doc=>{
-        const m=doc.data();
-        const isAdmin=m.sender==='admin';
-        const ts=parseTimestamp(m.timestamp);
-        const time=ts?ts.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):'';
-        html+=`<div class="support-msg ${isAdmin?'admin':'user'}">
-          <div class="support-msg-bubble">
-            <div class="support-msg-text">${escapeHtml(m.text||'')}</div>
-            <div class="support-msg-time">${time}${isAdmin?' ✓':''}</div>
-          </div>
-        </div>`;
-      });
-      if(!html)html='<div class="support-empty-chat"><p>No messages yet</p></div>';
-      const container=document.getElementById('supportMessages');
-      container.innerHTML=html;
-      container.scrollTop=container.scrollHeight;
-      
-      // Mark user messages as read
-      markUserMessagesRead(userId);
-    },err=>{
-      console.error('Messages listener error:',err);
-      document.getElementById('supportMessages').innerHTML='<div class="support-empty-chat"><p style="color:#ff4444">❌ Error loading messages: '+err.message+'</p></div>';
-    });
-}
-
-function escapeHtml(text){
-  const div=document.createElement('div');
-  div.textContent=text;
-  return div.innerHTML;
-}
-
-async function markUserMessagesRead(userId){
-  try{
-    const snap=await db.collection('support_chats').doc(userId)
-      .collection('messages').where('sender','==','user').where('read','==',false).get();
-    if(snap.empty)return;
-    const batch=db.batch();
-    snap.forEach(doc=>{batch.update(doc.ref,{read:true})});
-    await batch.commit();
-    // Reset unread count
-    await db.collection('support_chats').doc(userId).update({unreadByAdmin:0});
-    // Refresh chat list badge
-    const chatIdx=supportChats.findIndex(c=>c.id===userId);
-    if(chatIdx>=0)supportChats[chatIdx].unreadByAdmin=0;
-    renderSupportChatList(document.getElementById('supportSearchInput')?.value||'');
-  }catch(e){console.error('Mark read error:',e)}
-}
-
-async function sendAdminReply(){
-  if(!activeChatUserId)return;
-  const input=document.getElementById('adminReplyInput');
-  const text=input.value.trim();
-  if(!text)return;
-  input.value='';
-  
-  try{
-    // Add message
-    await db.collection('support_chats').doc(activeChatUserId)
-      .collection('messages').add({
-        text:text,
-        sender:'admin',
-        timestamp:Date.now(),
-        read:false
-      });
-    
-    // Update chat metadata
-    await db.collection('support_chats').doc(activeChatUserId).update({
-      lastMessage:text,
-      lastMessageTime:Date.now(),
-      lastSender:'admin',
-      unreadByUser:firebase.firestore.FieldValue.increment(1),
-      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-    
-    // Refresh local data
-    const chatIdx=supportChats.findIndex(c=>c.id===activeChatUserId);
-    if(chatIdx>=0){
-      supportChats[chatIdx].lastMessage=text;
-      supportChats[chatIdx].lastMessageTime=Date.now();
-      supportChats[chatIdx].lastSender='admin';
+    const doc=await db.collection('app_config').doc('support').get();
+    if(doc.exists){
+      const data=doc.data();
+      document.getElementById('supportLink').value=data.link||'';
+      document.getElementById('supportLabel').value=data.label||'';
+      document.getElementById('supportLinkPreview').textContent=data.link||'No link set';
+      document.getElementById('supportLinkStatus').innerHTML='<span style="color:#4caf50">✅ Link loaded</span>';
+    }else{
+      document.getElementById('supportLinkPreview').textContent='No link set yet';
+      document.getElementById('supportLinkStatus').innerHTML='<span style="color:#ff9800">⚠️ No link configured yet. Set one below.</span>';
     }
-    renderSupportChatList(document.getElementById('supportSearchInput')?.value||'');
   }catch(e){
-    console.error('Send reply error:',e);
-    showToast('❌ Failed to send reply');
+    console.error('Load support link error:',e);
+    document.getElementById('supportLinkStatus').innerHTML='<span style="color:#ff4444">❌ Error: '+e.message+'</span>';
   }
 }
 
-async function deleteSupportChat(){
-  if(!activeChatUserId)return;
-  const chat=supportChats.find(c=>c.id===activeChatUserId);
-  const name=chat?.userName||'this user';
-  if(!confirm('🗑️ Delete entire chat with '+name+'?\n\nThis will permanently delete all messages. This cannot be undone.'))return;
-  
-  showToast('🗑️ Deleting chat...');
+async function saveSupportLink(){
+  const link=document.getElementById('supportLink').value.trim();
+  const label=document.getElementById('supportLabel').value.trim();
+  if(!link){showToast('❌ Please enter a link URL');return;}
   try{
-    // Delete all messages in subcollection
-    const msgSnap=await db.collection('support_chats').doc(activeChatUserId).collection('messages').get();
-    const batch=db.batch();
-    msgSnap.forEach(doc=>{batch.delete(doc.ref)});
-    await batch.commit();
-    
-    // Delete the chat document
-    await db.collection('support_chats').doc(activeChatUserId).delete();
-    
-    // Remove listener
-    if(chatListener){chatListener();chatListener=null;}
-    
-    // Reset UI
-    const deletedId=activeChatUserId;
-    activeChatUserId=null;
-    document.getElementById('chatUserName').textContent='Select a conversation';
-    document.getElementById('chatUserEmail').textContent='Choose from the list on the left';
-    document.getElementById('supportReplyBar').style.display='none';
-    document.getElementById('btnDeleteChat').style.display='none';
-    document.getElementById('supportMessages').innerHTML='<div class="support-empty-chat"><div style="font-size:48px;margin-bottom:16px">💬</div><h3>Chat deleted</h3><p>Select another user from the list</p></div>';
-    
-    // Refresh chat list
-    supportChats=supportChats.filter(c=>c.id!==deletedId);
-    renderSupportChatList('');
-    showToast('✅ Chat deleted successfully');
+    await db.collection('app_config').doc('support').set({link,label:label||'Contact Support',updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    document.getElementById('supportLinkPreview').textContent=link;
+    document.getElementById('supportLinkStatus').innerHTML='<span style="color:#4caf50">✅ Saved successfully!</span>';
+    showToast('✅ Support link saved!');
   }catch(e){
-    console.error('Delete chat error:',e);
-    showToast('❌ Failed to delete: '+e.message);
-  }
-}
-
-async function deleteAllSupportChats(){
-  if(!confirm('🗑️ DELETE ALL CHATS?\n\nThis will permanently delete ALL support conversations and messages. This cannot be undone!'))return;
-  if(!confirm('⚠️ Are you SURE? This will delete '+supportChats.length+' chat(s) permanently.'))return;
-  
-  showToast('🗑️ Deleting all chats...');
-  try{
-    // Stop current listener
-    if(chatListener){chatListener();chatListener=null;}
-    
-    for(const chat of supportChats){
-      // Delete all messages in subcollection
-      const msgSnap=await db.collection('support_chats').doc(chat.id).collection('messages').get();
-      if(!msgSnap.empty){
-        const batch=db.batch();
-        msgSnap.forEach(doc=>{batch.delete(doc.ref)});
-        await batch.commit();
-      }
-      // Delete the chat document
-      await db.collection('support_chats').doc(chat.id).delete();
-    }
-    
-    // Reset UI
-    activeChatUserId=null;
-    supportChats=[];
-    document.getElementById('chatUserName').textContent='Select a conversation';
-    document.getElementById('chatUserEmail').textContent='Choose from the list on the left';
-    document.getElementById('supportReplyBar').style.display='none';
-    document.getElementById('btnDeleteChat').style.display='none';
-    document.getElementById('supportMessages').innerHTML='<div class="support-empty-chat"><div style="font-size:48px;margin-bottom:16px">💬</div><h3>All chats deleted</h3><p>No conversations remaining</p></div>';
-    renderSupportChatList('');
-    showToast('✅ All chats deleted successfully');
-  }catch(e){
-    console.error('Delete all chats error:',e);
+    console.error('Save support link error:',e);
     showToast('❌ Failed: '+e.message);
   }
+}
+
+function testSupportLink(){
+  const link=document.getElementById('supportLink').value.trim();
+  if(!link){showToast('❌ Enter a link first');return;}
+  window.open(link,'_blank');
 }
