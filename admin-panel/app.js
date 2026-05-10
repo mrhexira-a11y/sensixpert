@@ -487,6 +487,15 @@ function formatTime(ts){
 
 function filterSupportChats(q){renderSupportChatList(q)}
 
+function parseTimestamp(ts){
+  if(!ts)return null;
+  if(typeof ts==='number')return new Date(ts);
+  if(ts.seconds)return new Date(ts.seconds*1000);
+  if(ts.toDate)return ts.toDate();
+  const d=new Date(ts);
+  return isNaN(d.getTime())?null:d;
+}
+
 async function openSupportChat(userId){
   activeChatUserId=userId;
   const chat=supportChats.find(c=>c.id===userId);
@@ -495,6 +504,9 @@ async function openSupportChat(userId){
   document.getElementById('chatUserEmail').textContent=chat?.userEmail||userId;
   document.getElementById('supportReplyBar').style.display='flex';
   document.getElementById('btnDeleteChat').style.display='inline-flex';
+  
+  // Show loading state
+  document.getElementById('supportMessages').innerHTML='<div class="support-empty-chat"><p>Loading messages...</p></div>';
   
   // Refresh the list to show active state
   renderSupportChatList(document.getElementById('supportSearchInput')?.value||'');
@@ -510,10 +522,11 @@ async function openSupportChat(userId){
       snap.forEach(doc=>{
         const m=doc.data();
         const isAdmin=m.sender==='admin';
-        const time=m.timestamp?new Date(m.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):'';
+        const ts=parseTimestamp(m.timestamp);
+        const time=ts?ts.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):'';
         html+=`<div class="support-msg ${isAdmin?'admin':'user'}">
           <div class="support-msg-bubble">
-            <div class="support-msg-text">${escapeHtml(m.text)}</div>
+            <div class="support-msg-text">${escapeHtml(m.text||'')}</div>
             <div class="support-msg-time">${time}${isAdmin?' ✓':''}</div>
           </div>
         </div>`;
@@ -525,6 +538,9 @@ async function openSupportChat(userId){
       
       // Mark user messages as read
       markUserMessagesRead(userId);
+    },err=>{
+      console.error('Messages listener error:',err);
+      document.getElementById('supportMessages').innerHTML='<div class="support-empty-chat"><p style="color:#ff4444">❌ Error loading messages: '+err.message+'</p></div>';
     });
 }
 
@@ -627,5 +643,42 @@ async function deleteSupportChat(){
   }catch(e){
     console.error('Delete chat error:',e);
     showToast('❌ Failed to delete: '+e.message);
+  }
+}
+
+async function deleteAllSupportChats(){
+  if(!confirm('🗑️ DELETE ALL CHATS?\n\nThis will permanently delete ALL support conversations and messages. This cannot be undone!'))return;
+  if(!confirm('⚠️ Are you SURE? This will delete '+supportChats.length+' chat(s) permanently.'))return;
+  
+  showToast('🗑️ Deleting all chats...');
+  try{
+    // Stop current listener
+    if(chatListener){chatListener();chatListener=null;}
+    
+    for(const chat of supportChats){
+      // Delete all messages in subcollection
+      const msgSnap=await db.collection('support_chats').doc(chat.id).collection('messages').get();
+      if(!msgSnap.empty){
+        const batch=db.batch();
+        msgSnap.forEach(doc=>{batch.delete(doc.ref)});
+        await batch.commit();
+      }
+      // Delete the chat document
+      await db.collection('support_chats').doc(chat.id).delete();
+    }
+    
+    // Reset UI
+    activeChatUserId=null;
+    supportChats=[];
+    document.getElementById('chatUserName').textContent='Select a conversation';
+    document.getElementById('chatUserEmail').textContent='Choose from the list on the left';
+    document.getElementById('supportReplyBar').style.display='none';
+    document.getElementById('btnDeleteChat').style.display='none';
+    document.getElementById('supportMessages').innerHTML='<div class="support-empty-chat"><div style="font-size:48px;margin-bottom:16px">💬</div><h3>All chats deleted</h3><p>No conversations remaining</p></div>';
+    renderSupportChatList('');
+    showToast('✅ All chats deleted successfully');
+  }catch(e){
+    console.error('Delete all chats error:',e);
+    showToast('❌ Failed: '+e.message);
   }
 }

@@ -144,7 +144,10 @@
       <div class="support-list-panel">
         <div class="support-list-header">
           <h4>💬 Support Chats</h4>
-          <button class="btn-refresh" onclick="loadSupportChats()" title="Refresh">🔄</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn-refresh" onclick="loadSupportChats()" title="Refresh">🔄</button>
+            <button class="btn-action" onclick="deleteAllSupportChats()" title="Delete All Chats" style="color:#ff4444;border-color:#ff4444;font-size:12px;padding:6px 10px">🗑️ All</button>
+          </div>
         </div>
         <div class="support-search">
           <input type="text" placeholder="🔍 Search users..." oninput="filterSupportChats(this.value)" id="supportSearchInput">
@@ -163,6 +166,7 @@
               <div class="support-user-email" id="chatUserEmail">Choose from the list on the left</div>
             </div>
           </div>
+          <button class="btn-delete-chat" id="btnDeleteChat" onclick="deleteSupportChat()" style="display:none" title="Delete entire chat">🗑️ Delete Chat</button>
         </div>
         <div class="support-messages" id="supportMessages">
           <div class="support-empty-chat">
