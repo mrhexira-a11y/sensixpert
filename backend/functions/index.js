@@ -202,11 +202,13 @@ app.post("/send-notification", async (req, res) => {
 
         if (tokens.length === 0) return res.json({ success: true, sent: 0, message: "No devices found" });
 
+        // Use DATA-ONLY message to prevent Android from auto-showing a duplicate notification.
+        // FCMService.onMessageReceived will handle building and displaying the notification.
         let successCount = 0, failCount = 0;
         for (let i = 0; i < tokens.length; i += 500) {
             const batch = tokens.slice(i, i + 500);
             const response = await admin.messaging().sendEachForMulticast({
-                notification: { title, body: message },
+                data: { title, body: message },
                 tokens: batch,
             });
             successCount += response.successCount;

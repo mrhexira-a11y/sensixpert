@@ -328,7 +328,9 @@ function showToast(msg){
 
 // ─── NOTIFICATIONS ───
 function toggleUserSelect(){document.getElementById('specificUserGroup').style.display=document.getElementById('notifTarget').value==='specific'?'block':'none'}
+let sendingNotification=false;
 async function sendNotification(){
+  if(sendingNotification){showToast('⏳ Already sending...');return}
   const title=document.getElementById('notifTitle').value;
   const msg=document.getElementById('notifMessage').value;
   const target=document.getElementById('notifTarget').value;
@@ -337,6 +339,7 @@ async function sendNotification(){
   const specificUser=target==='specific'?document.getElementById('notifSpecificUser').value:'';
   if(target==='specific'&&!specificUser){showToast('❌ Enter user email or UID');return}
 
+  sendingNotification=true;
   showToast('📤 Sending notification...');
 
   try{
@@ -369,6 +372,8 @@ async function sendNotification(){
   }catch(e){
     console.error('Send notification error:',e);
     showToast('❌ Error: '+e.message);
+  }finally{
+    sendingNotification=false;
   }
 }
 async function loadNotifications(){
