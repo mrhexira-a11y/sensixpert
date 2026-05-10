@@ -62,5 +62,13 @@ service cloud.firestore {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated();
     }
+
+    // ─── APP CONFIG (support link, etc.) ───
+    // Admin: full read/write access
+    // Users: can read config (to fetch support link in app)
+    match /app_config/{docId} {
+      allow read, write: if isAdmin();
+      allow read: if isAuthenticated();
+    }
   }
 }
