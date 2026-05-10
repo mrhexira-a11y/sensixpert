@@ -15,8 +15,8 @@ body{background:var(--bg);color:#fff;font-family:'Inter',sans-serif;overflow-x:h
 nav{display:flex;justify-content:space-between;align-items:center;padding:18px 7%;background:rgba(2,2,5,0.6);backdrop-filter:blur(20px);position:fixed;width:100%;top:0;z-index:1000;border-bottom:1px solid transparent;transition:.4s}
 nav.scrolled{background:rgba(2,2,5,0.95);border-bottom-color:rgba(255,255,255,0.05);box-shadow:0 4px 30px rgba(0,0,0,0.5)}
 .nav-left{display:flex;align-items:center;gap:12px}
-.logo-icon{width:38px;height:38px;background:linear-gradient(135deg,#ff0a0a,#8b0000);border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(255,0,0,0.3)}
-.logo-s{font-family:'Orbitron',sans-serif;font-weight:900;font-size:18px;color:#fff}
+.nav-logo-img{height:42px;width:auto;border-radius:10px;transition:.3s}
+.nav-logo-img:hover{transform:scale(1.05)}
 .logo{font-family:'Orbitron',sans-serif;font-size:1.3rem;font-weight:900;letter-spacing:3px}
 .logo span{color:var(--red);text-shadow:0 0 15px rgba(255,0,0,0.5)}
 .nav-links-desktop{display:flex;gap:28px;margin-right:20px}
@@ -51,19 +51,27 @@ nav.scrolled{background:rgba(2,2,5,0.95);border-bottom-color:rgba(255,255,255,0.
 .stat-box h3{font-family:'Orbitron';font-size:1.8rem;font-weight:900;margin-bottom:2px;background:linear-gradient(135deg,#fff,#ccc);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .stat-box p{font-size:13px;color:#555;font-weight:600;text-transform:uppercase;letter-spacing:1px}
 
-/* PHONE MOCKUP */
+/* PHONE MOCKUP - Premium 3D */
 .mockup-container{flex:1;display:flex;justify-content:center;align-items:center;min-width:320px;position:relative}
-.phone-glow{position:absolute;width:300px;height:300px;background:radial-gradient(circle,rgba(255,0,0,0.15),transparent 70%);border-radius:50%;filter:blur(40px);animation:pulse-glow 4s infinite}
-@keyframes pulse-glow{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.1)}}
-.phone-frame{width:290px;height:610px;background:#000;border-radius:42px;border:8px solid #111;position:relative;box-shadow:0 50px 100px rgba(0,0,0,0.8),0 0 40px rgba(255,0,0,0.15),inset 0 0 30px rgba(0,0,0,0.5);overflow:hidden;transform:rotateY(-8deg) rotateX(3deg);transition:.5s;z-index:1}
-.phone-frame:hover{transform:rotateY(0) rotateX(0)}
-.phone-frame::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:120px;height:28px;background:#000;border-radius:0 0 18px 18px;z-index:10}
-.app-screen{height:100%;background:radial-gradient(ellipse at top,#1a0000 0%,#050005 100%);display:flex;flex-direction:column;padding:40px 18px 18px}
-.app-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.phone-glow{position:absolute;width:350px;height:350px;background:radial-gradient(circle,rgba(255,0,0,0.12),transparent 70%);border-radius:50%;filter:blur(50px);animation:pulse-glow 4s infinite}
+@keyframes pulse-glow{0%,100%{opacity:.4;transform:scale(1)}50%{opacity:.8;transform:scale(1.15)}}
+.phone-reflection{position:absolute;width:200px;height:600px;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);transform:rotate(-15deg) translateX(80px);border-radius:50%;z-index:3;pointer-events:none}
+.phone-shadow{position:absolute;bottom:-30px;width:220px;height:20px;background:radial-gradient(ellipse,rgba(255,0,0,0.15),transparent 70%);filter:blur(15px);z-index:0}
+.phone-frame{width:280px;height:600px;background:linear-gradient(145deg,#1a1a1a,#0a0a0a);border-radius:46px;border:3px solid #222;position:relative;box-shadow:0 60px 120px rgba(0,0,0,0.9),0 0 50px rgba(255,0,0,0.1),0 0 0 1px rgba(255,255,255,0.05),inset 0 1px 0 rgba(255,255,255,0.08),20px 20px 60px rgba(0,0,0,0.5),-20px 20px 60px rgba(0,0,0,0.5);overflow:hidden;transform:perspective(1200px) rotateY(-12deg) rotateX(5deg) scale(1);transition:.6s cubic-bezier(.25,.46,.45,.94);z-index:2;animation:phone-float 6s ease-in-out infinite}
+.phone-frame:hover{transform:perspective(1200px) rotateY(0deg) rotateX(0deg) scale(1.02)}
+@keyframes phone-float{0%,100%{transform:perspective(1200px) rotateY(-12deg) rotateX(5deg) translateY(0)}50%{transform:perspective(1200px) rotateY(-12deg) rotateX(5deg) translateY(-12px)}}
+.phone-notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:110px;height:26px;background:#000;border-radius:0 0 16px 16px;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,0.5)}
+.phone-notch::after{content:'';position:absolute;top:8px;left:50%;transform:translateX(-50%);width:8px;height:8px;background:#111;border-radius:50%;box-shadow:0 0 0 2px #1a1a1a}
+.app-screen{height:100%;background:radial-gradient(ellipse at top center,#1a0005 0%,#060008 50%,#020002 100%);display:flex;flex-direction:column;padding:0 16px 16px}
+.app-status-bar{display:flex;justify-content:space-between;align-items:center;padding:32px 6px 8px;color:rgba(255,255,255,0.6);font-size:11px}
+.app-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:0 4px}
 .app-sub-badge{background:rgba(255,0,0,0.15);font-size:9px;padding:4px 10px;border-radius:6px;border:1px solid rgba(255,0,0,0.3);color:var(--red);font-family:'Orbitron';font-weight:700;display:flex;align-items:center;gap:4px}
 .app-connect-section{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.glow-circle{width:160px;height:160px;background:radial-gradient(circle,#ff0000 0%,#440000 100%);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Orbitron';font-size:16px;font-weight:900;box-shadow:0 0 60px rgba(255,0,0,0.7),0 0 120px rgba(255,0,0,0.2),inset 0 0 30px rgba(255,255,255,0.15);animation:breathe 3s infinite;letter-spacing:2px}
-@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.06);box-shadow:0 0 80px rgba(255,0,0,0.9),0 0 160px rgba(255,0,0,0.3),inset 0 0 30px rgba(255,255,255,0.15)}}
+.glow-ring-outer{width:190px;height:190px;border-radius:50%;border:1px solid rgba(255,0,0,0.1);display:flex;align-items:center;justify-content:center;animation:ring-pulse 4s infinite}
+.glow-ring-inner{width:175px;height:175px;border-radius:50%;border:1px solid rgba(255,0,0,0.15);display:flex;align-items:center;justify-content:center}
+@keyframes ring-pulse{0%,100%{border-color:rgba(255,0,0,0.1)}50%{border-color:rgba(255,0,0,0.3)}}
+.glow-circle{width:150px;height:150px;background:radial-gradient(circle,#ff0000 0%,#440000 100%);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Orbitron';font-size:15px;font-weight:900;box-shadow:0 0 50px rgba(255,0,0,0.6),0 0 100px rgba(255,0,0,0.15),inset 0 0 25px rgba(255,255,255,0.12);animation:breathe 3s infinite;letter-spacing:2px}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.05);box-shadow:0 0 70px rgba(255,0,0,0.8),0 0 140px rgba(255,0,0,0.2),inset 0 0 25px rgba(255,255,255,0.12)}}
 .premium-tab{background:rgba(0,0,0,0.6);border-radius:8px;padding:8px 16px;font-size:11px;color:#4ade80;margin-top:18px;border:1px solid rgba(74,222,128,0.2);display:flex;align-items:center;gap:6px}
 .app-footer-nav{display:flex;justify-content:space-around;padding-bottom:15px}
 .nav-item-app{text-align:center}
@@ -127,7 +135,7 @@ nav{padding:15px 5%}
 .stats-wrapper{justify-content:center;gap:28px}
 .stat-box h3{font-size:1.4rem}
 .mockup-container{min-width:100%}
-.phone-frame{transform:none!important;width:260px;height:540px}
+.phone-frame{transform:none!important;width:250px;height:530px;animation:none!important}
 .feature-grid{grid-template-columns:1fr}
 .contact-grid{grid-template-columns:1fr}
 .info-card{padding:28px 24px}
