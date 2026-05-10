@@ -24,10 +24,12 @@ class FCMService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        Log.d("FCM", "Message received: ${message.notification?.title}")
+        Log.d("FCM", "Message received from: ${message.from}")
 
-        val title = message.notification?.title ?: "SensiXpert"
-        val body = message.notification?.body ?: ""
+        // Read from data payload first (data-only messages prevent duplicate notifications)
+        // Fallback to notification payload for backward compatibility
+        val title = message.data["title"] ?: message.notification?.title ?: "SensiXpert"
+        val body = message.data["body"] ?: message.notification?.body ?: ""
         val link = message.data["link"]
 
         showNotification(title, body, link)
