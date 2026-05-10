@@ -61,25 +61,45 @@ function showSection(name,el){
   if(name==='support')loadSupportChats();
 }
 
-// ─── REFRESH ALL (sequential to avoid race condition) ───
-let allUsers=[],allPayments=[];
+// ─── REFRESH ALL (decoupled to handle partial permission errors) ───
+let allUsers=[],allPayments=[],usersAccessDenied=false;
 async function refreshAll(){
   const btn=document.querySelector('.btn-refresh');
   if(btn){btn.classList.add('spinning');setTimeout(()=>btn.classList.remove('spinning'),600)}
-  try{
-    // Load data sequentially to avoid race conditions on shared arrays
-    const uSnap=await db.collection('users').get();
-    const pSnap=await db.collection('payments').orderBy('createdAt','desc').get();
-    allUsers=[];allPayments=[];
-    uSnap.forEach(d=>{allUsers.push({id:d.id,...d.data()})});
-    pSnap.forEach(d=>{allPayments.push({id:d.id,...d.data()})});
 
-    // Now render everything from the loaded data
-    renderDashboard();
-    renderUsers();
-    renderPayments();
-    checkServer();
-  }catch(e){console.error('Refresh error:',e)}
+  // Load users (may fail due to Firestore rules)
+  try{
+    const uSnap=await db.collection('users').get();
+    allUsers=[];
+    uSnap.forEach(d=>{allUsers.push({id:d.id,...d.data()})});
+    usersAccessDenied=false;
+  }catch(e){
+    console.error('Users fetch error:',e);
+    if(e.code==='permission-denied'){
+      usersAccessDenied=true;
+      showToast('⚠️ Users collection: Permission denied. Update Firestore rules.');
+    }
+    allUsers=[];
+  }
+
+  // Load payments (independent of users)
+  try{
+    const pSnap=await db.collection('payments').orderBy('createdAt','desc').get();
+    allPayments=[];
+    pSnap.forEach(d=>{allPayments.push({id:d.id,...d.data()})});
+  }catch(e){
+    console.error('Payments fetch error:',e);
+    if(e.code==='permission-denied'){
+      showToast('⚠️ Payments collection: Permission denied.');
+    }
+    allPayments=[];
+  }
+
+  // Render everything from whatever data loaded
+  renderDashboard();
+  renderUsers();
+  renderPayments();
+  checkServer();
 }
 
 // ─── SERVER HEALTH ───
@@ -109,12 +129,12 @@ function renderDashboard(){
       if(p.status==='pending')pending++;
     });
 
-    document.getElementById('statUsers').textContent=allUsers.length;
-    document.getElementById('statActive').textContent=active;
+    document.getElementById('statUsers').textContent=usersAccessDenied?'⚠️':allUsers.length;
+    document.getElementById('statActive').textContent=usersAccessDenied?'⚠️':active;
     document.getElementById('statRevenue').textContent='₹'+totalRev.toLocaleString('en-IN');
     document.getElementById('statPending').textContent=pending;
     document.getElementById('statToday').textContent='₹'+todayRev.toLocaleString('en-IN');
-    document.getElementById('statConversion').textContent=allUsers.length?Math.round(active/allUsers.length*100)+'%':'0%';
+    document.getElementById('statConversion').textContent=usersAccessDenied?'⚠️':(allUsers.length?Math.round(active/allUsers.length*100)+'%':'0%');
 
     // Recent payments table
     let html='';
@@ -194,6 +214,14 @@ function renderAnalytics(){
 // ─── USERS ───
 function renderUsers(){
   try{
+    // Show access denied message if Firestore rules block users collection
+    if(usersAccessDenied){
+      document.getElementById('usersBody').innerHTML='<tr><td colspan="6" class="empty" style="color:#ff4444">🔒 Access Denied — Update Firestore rules to allow admin read access to "users" collection</td></tr>';
+      document.getElementById('userCount').textContent='(⚠️)';
+      document.getElementById('subsBody').innerHTML='<tr><td colspan="6" class="empty" style="color:#ff4444">🔒 Access Denied — Users data required</td></tr>';
+      document.getElementById('subCount').textContent='(⚠️)';
+      return;
+    }
     let html='',subs=[];
     allUsers.forEach(u=>{
       const sub=u.subscription||{};
@@ -461,6 +489,7 @@ async function openSupportChat(userId){
   document.getElementById('chatUserName').textContent=chat?.userName||'User';
   document.getElementById('chatUserEmail').textContent=chat?.userEmail||userId;
   document.getElementById('supportReplyBar').style.display='flex';
+  document.getElementById('btnDeleteChat').style.display='inline-flex';
   
   // Refresh the list to show active state
   renderSupportChatList(document.getElementById('supportSearchInput')?.value||'');
@@ -554,5 +583,44 @@ async function sendAdminReply(){
   }catch(e){
     console.error('Send reply error:',e);
     showToast('❌ Failed to send reply');
+  }
+}
+
+async function deleteSupportChat(){
+  if(!activeChatUserId)return;
+  const chat=supportChats.find(c=>c.id===activeChatUserId);
+  const name=chat?.userName||'this user';
+  if(!confirm('🗑️ Delete entire chat with '+name+'?\n\nThis will permanently delete all messages. This cannot be undone.'))return;
+  
+  showToast('🗑️ Deleting chat...');
+  try{
+    // Delete all messages in subcollection
+    const msgSnap=await db.collection('support_chats').doc(activeChatUserId).collection('messages').get();
+    const batch=db.batch();
+    msgSnap.forEach(doc=>{batch.delete(doc.ref)});
+    await batch.commit();
+    
+    // Delete the chat document
+    await db.collection('support_chats').doc(activeChatUserId).delete();
+    
+    // Remove listener
+    if(chatListener){chatListener();chatListener=null;}
+    
+    // Reset UI
+    const deletedId=activeChatUserId;
+    activeChatUserId=null;
+    document.getElementById('chatUserName').textContent='Select a conversation';
+    document.getElementById('chatUserEmail').textContent='Choose from the list on the left';
+    document.getElementById('supportReplyBar').style.display='none';
+    document.getElementById('btnDeleteChat').style.display='none';
+    document.getElementById('supportMessages').innerHTML='<div class="support-empty-chat"><div style="font-size:48px;margin-bottom:16px">💬</div><h3>Chat deleted</h3><p>Select another user from the list</p></div>';
+    
+    // Refresh chat list
+    supportChats=supportChats.filter(c=>c.id!==deletedId);
+    renderSupportChatList('');
+    showToast('✅ Chat deleted successfully');
+  }catch(e){
+    console.error('Delete chat error:',e);
+    showToast('❌ Failed to delete: '+e.message);
   }
 }
