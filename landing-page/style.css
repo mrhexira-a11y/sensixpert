@@ -17,7 +17,7 @@ nav.scrolled{background:rgba(2,2,5,0.95);border-bottom-color:rgba(255,255,255,0.
 .nav-left{display:flex;align-items:center}
 .nav-logo-link{display:flex;align-items:center;text-decoration:none;transition:.3s}
 .nav-logo-link:hover{transform:scale(1.08)}
-.nav-logo-svg{height:44px;width:auto;filter:drop-shadow(0 0 6px rgba(255,0,0,0.3))}
+.nav-logo-svg{height:38px;width:auto;filter:drop-shadow(0 0 6px rgba(255,0,0,0.3))}
 .logo{font-family:'Orbitron',sans-serif;font-size:1.3rem;font-weight:900;letter-spacing:3px}
 .logo span{color:var(--red);text-shadow:0 0 15px rgba(255,0,0,0.5)}
 .nav-links-desktop{display:flex;gap:28px;margin-right:20px}
@@ -127,7 +127,7 @@ footer{border-top:1px solid rgba(255,255,255,0.05);padding:40px 7% 20px}
 /* MOBILE */
 @media(max-width:768px){
 nav{padding:14px 5%}
-.nav-logo-svg{height:36px}
+.nav-logo-svg{height:38px}
 .nav-links-desktop{display:none}
 .dropdown-menu{right:5%;top:65px}
 .hero{flex-direction:column;text-align:center;padding:110px 5% 60px;gap:30px}
