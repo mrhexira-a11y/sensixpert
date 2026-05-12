@@ -2,7 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ─── HELPER: Check if user is admin ───
     function isAdmin() {
       return request.auth != null && (
         request.auth.token.email == 'sensixpertadmin@gmail.com' ||
@@ -11,101 +10,78 @@ service cloud.firestore {
       );
     }
 
-    // ─── HELPER: Check if user is authenticated ───
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // ─── USERS COLLECTION ───
-    // Admin: full read/write access to all user documents
-    // User: can read/write only their own document
     match /users/{userId} {
       allow read, write: if isAdmin();
       allow read, write: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // ─── PAYMENTS COLLECTION ───
-    // Admin: full read/write access
-    // User: can read own payments, can create new payments
     match /payments/{paymentId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
     }
 
-    // ─── NOTIFICATIONS COLLECTION ───
-    // Admin: full read/write/delete access
-    // Users: can read notifications (to display in app)
     match /notifications/{notifId} {
       allow read, write, delete: if isAdmin();
       allow read: if isAuthenticated();
     }
 
-    // ─── SUPPORT CHATS COLLECTION ───
-    // Admin: full access to all chats and messages
-    // User: can read/write only their own chat
     match /support_chats/{chatId} {
       allow read, write, delete: if isAdmin();
       allow read, write: if isAuthenticated() && request.auth.uid == chatId;
 
-      // Messages subcollection
       match /messages/{messageId} {
         allow read, write, delete: if isAdmin();
         allow read, write: if isAuthenticated() && request.auth.uid == chatId;
       }
     }
 
-    // ─── CONFIG COLLECTION (pricing, policies) ───
-    // Admin: full read/write access
-    // Users: can read config (to show prices, policies in app)
     match /config/{docId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated();
     }
 
-    // ─── APP CONFIG (support link, etc.) ───
-    // Admin: full read/write access
-    // Users: can read config (to fetch support link in app)
     match /app_config/{docId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated();
     }
 
-    // ─── REFERRALS COLLECTION ───
-    // Admin: full access
-    // Authenticated users: can read any code (to validate), can create their own
+    // ── Refer & Earn Collections ──
+
+    // Referral codes (document ID = code like "SX7A3K")
     match /referrals/{code} {
-      allow read, write, delete: if isAdmin();
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
     }
 
-    // ─── REFERRAL LOGS ───
-    // Admin: full access
-    // Users: can read logs where they are referrer or referred
+    // Referral logs (tracks who referred whom)
     match /referral_logs/{logId} {
-      allow read, write, delete: if isAdmin();
-      allow read: if isAuthenticated() && (
-        resource.data.referrerUserId == request.auth.uid ||
-        resource.data.referredUserId == request.auth.uid
-      );
+      allow read, write: if isAdmin();
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
     }
 
-    // ─── WALLETS COLLECTION ───
-    // Admin: full access
-    // Users: can only read their own wallet
+    // Wallets (document ID = userId)
     match /wallets/{userId} {
-      allow read, write, delete: if isAdmin();
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated();
     }
 
-    // ─── WITHDRAWALS COLLECTION ───
-    // Admin: full access (approve/reject)
-    // Users: can read own withdrawals, can create new withdrawal requests
+    // Withdrawal requests
     match /withdrawals/{withdrawalId} {
-      allow read, write, delete: if isAdmin();
-      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow read, write: if isAdmin();
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
     }
+
   }
 }
