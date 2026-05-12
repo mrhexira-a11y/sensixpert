@@ -29,6 +29,7 @@ class AuthViewModel : ViewModel() {
     var registerPhone by mutableStateOf("")
     var registerEmail by mutableStateOf("")
     var registerPassword by mutableStateOf("")
+    var registerPromoCode by mutableStateOf("")
 
     // Error / loading states
     var errorMessage by mutableStateOf<String?>(null)
@@ -98,7 +99,8 @@ class AuthViewModel : ViewModel() {
                 name = registerName.trim(),
                 phone = registerPhone.trim(),
                 email = registerEmail.trim(),
-                password = registerPassword
+                password = registerPassword,
+                promoCode = registerPromoCode.trim().uppercase().ifEmpty { null }
             )
             isProcessing = false
             result.fold(
@@ -121,6 +123,7 @@ class AuthViewModel : ViewModel() {
         registerPhone = ""
         registerEmail = ""
         registerPassword = ""
+        registerPromoCode = ""
         errorMessage = null
         authState = AuthState.LoggedOut
     }

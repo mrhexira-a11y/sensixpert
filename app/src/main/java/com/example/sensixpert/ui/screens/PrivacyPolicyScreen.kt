@@ -85,32 +85,42 @@ fun PrivacyPolicyScreen(
             ) {
                 PolicySection(
                     title = "Introduction",
-                    content = "Welcome to SensiXpert. Your privacy is critically important to us. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application."
+                    content = "Welcome to SensiXpert. Your privacy is critically important to us. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application. By using SensiXpert, you consent to the practices described in this policy."
                 )
 
                 PolicySection(
                     title = "Information We Collect",
-                    content = "We may collect information that you provide directly, such as device model information used for sensitivity recommendations. We also collect anonymous usage data to improve app performance and user experience. We do NOT collect any personally identifiable information (PII) unless explicitly provided by you."
+                    content = "We collect the following information:\n\n• Account Information: Name, email address, phone number provided during registration.\n• Device Information: Device model and specifications used for sensitivity recommendations.\n• Subscription Data: Plan details, payment status, and subscription history.\n• Referral Data: Referral codes, referral relationships, and commission history when you participate in our Refer & Earn program.\n• Wallet & Payment Data: Wallet balances, withdrawal requests, and UPI IDs provided for withdrawal processing.\n• Usage Data: Anonymous app usage analytics to improve performance.\n• Push Notification Tokens: For sending you important updates and notifications."
                 )
 
                 PolicySection(
                     title = "How We Use Your Information",
-                    content = "The information we collect is used to:\n• Provide and maintain the app\n• Improve and optimize the app experience\n• Generate device-specific sensitivity settings\n• Show relevant advertisements through Google AdMob\n• Monitor app usage analytics"
+                    content = "The information we collect is used to:\n• Provide, maintain, and improve the app\n• Process subscription payments securely\n• Operate the Refer & Earn program including tracking referrals and crediting commissions\n• Process wallet withdrawals to your provided UPI ID\n• Generate device-specific sensitivity settings\n• Send push notifications for updates and promotions\n• Monitor app usage analytics\n• Prevent fraud and abuse of the referral system"
                 )
 
                 PolicySection(
-                    title = "Advertisements",
-                    content = "We use Google AdMob to display advertisements. AdMob may collect and use certain data, including your device's advertising identifier, to serve personalized or non-personalized ads. You can learn more about Google's data practices at Google's Privacy Policy page."
+                    title = "Referral Program Data",
+                    content = "When you participate in our Refer & Earn program, we collect and store:\n• Your unique referral code\n• Referral relationships (who referred whom)\n• Commission amounts and payment history\n• Wallet balance and transaction history\n\nThis data is used solely to operate the referral program, calculate commissions, and process withdrawals. We do not share referral data with third parties."
+                )
+
+                PolicySection(
+                    title = "Payment & Wallet Information",
+                    content = "We store wallet balances, withdrawal requests, and UPI IDs that you provide for withdrawal processing. Your UPI ID is stored securely on our servers and is used exclusively for processing approved withdrawal payments. We do not store any bank account details, credit/debit card numbers, or other financial instruments."
                 )
 
                 PolicySection(
                     title = "Data Security",
-                    content = "We implement industry-standard security measures to protect your data. However, no method of electronic storage or transmission is 100% secure. We strive to use commercially acceptable means to protect your information but cannot guarantee its absolute security."
+                    content = "We implement industry-standard security measures to protect your data including encrypted data transmission (SSL/TLS), secure server infrastructure, and access controls. However, no method of electronic storage or transmission is 100% secure. We strive to use commercially acceptable means to protect your information but cannot guarantee its absolute security."
                 )
 
                 PolicySection(
-                    title = "Third-Party Services",
-                    content = "Our app may contain links to third-party services. We are not responsible for the privacy practices of these third parties. We encourage you to read the privacy policies of any third-party services you access."
+                    title = "Information Sharing",
+                    content = "We do not sell, trade, or rent your personal data to third parties. We may share information only in the following cases:\n• With payment processors to complete transactions\n• To comply with legal obligations or court orders\n• To protect our rights, property, or safety\n• With your explicit consent"
+                )
+
+                PolicySection(
+                    title = "Data Retention",
+                    content = "We retain your personal data for as long as your account is active. Referral data, wallet history, and withdrawal records are retained for a reasonable period after account closure for legal and accounting purposes. You may request deletion of your account and associated data by contacting our support team."
                 )
 
                 PolicySection(
@@ -120,18 +130,18 @@ fun PrivacyPolicyScreen(
 
                 PolicySection(
                     title = "Changes to This Policy",
-                    content = "We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy within the app. You are advised to review this page periodically for any changes."
+                    content = "We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy within the app. You are advised to review this page periodically for any changes. Continued use of the app after changes constitutes acceptance of the updated policy."
                 )
 
                 PolicySection(
                     title = "Contact Us",
-                    content = "If you have any questions about this Privacy Policy, please contact us through the app's support section."
+                    content = "If you have any questions about this Privacy Policy or wish to exercise your data rights, please contact us through the app's Customer Support section."
                 )
 
                 Spacer(modifier = Modifier.height(32.dp))
 
                 Text(
-                    text = "Last updated: April 2026",
+                    text = "Last updated: May 2026",
                     color = TextDimGrey,
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,

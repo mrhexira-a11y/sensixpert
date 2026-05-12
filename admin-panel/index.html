@@ -30,6 +30,8 @@
   <div class="nav-item" onclick="showSection('analytics',this)"><span class="icon">📈</span><span>Analytics</span></div>
   <div class="nav-item" onclick="showSection('notifications',this)"><span class="icon">📢</span><span>Notifications</span></div>
   <div class="nav-item" onclick="showSection('support',this)"><span class="icon">💬</span><span>Support</span></div>
+  <div class="nav-item" onclick="showSection('referrals',this)"><span class="icon">🎁</span><span>Referrals</span></div>
+  <div class="nav-item" onclick="showSection('withdrawals',this)"><span class="icon">💰</span><span>Withdrawals</span></div>
   <div class="sidebar-footer">
     <div class="server-status"><div class="status-dot" id="serverDot"></div><span id="serverText">Checking...</span></div>
   </div>
@@ -53,6 +55,8 @@
       <div class="stat-card yellow"><div class="label">Pending Payments</div><div class="value" id="statPending">—</div></div>
       <div class="stat-card blue"><div class="label">Today's Revenue</div><div class="value" id="statToday">—</div></div>
       <div class="stat-card purple"><div class="label">Conversion Rate</div><div class="value" id="statConversion">—</div></div>
+      <div class="stat-card" style="border-color:#FF6B35"><div class="label">🎁 Total Referrals</div><div class="value" id="statReferrals">—</div></div>
+      <div class="stat-card" style="border-color:#FFD700"><div class="label">💰 Pending Withdrawals</div><div class="value" id="statPendingWithdrawals">—</div></div>
     </div>
     <div class="charts-grid">
       <div class="chart-card"><h4>📊 Revenue (Last 7 Days)</h4><canvas id="revenueChart"></canvas></div>
@@ -159,6 +163,49 @@
         <p style="color:#666;font-size:11px;margin-bottom:6px">CURRENT LINK PREVIEW</p>
         <p id="supportLinkPreview" style="color:#4fc3f7;font-size:13px;word-break:break-all">Loading...</p>
       </div>
+    </div>
+  </div>
+
+  <!-- REFERRALS -->
+  <div class="section" id="sec-referrals">
+    <div class="stats-grid">
+      <div class="stat-card green"><div class="label">Total Referral Codes</div><div class="value" id="refTotalCodes">—</div></div>
+      <div class="stat-card blue"><div class="label">Total Referred Users</div><div class="value" id="refTotalReferred">—</div></div>
+      <div class="stat-card red"><div class="label">Total Commissions Paid</div><div class="value" id="refTotalCommissions">—</div></div>
+      <div class="stat-card yellow"><div class="label">Conversion Rate</div><div class="value" id="refConvRate">—</div></div>
+    </div>
+    <div class="table-container">
+      <div class="table-header"><h3>All Referral Codes</h3></div>
+      <table><thead><tr><th>Code</th><th>User ID</th><th>Total Referred</th><th>Successful</th><th>Earnings (₹)</th><th>Created</th></tr></thead>
+      <tbody id="referralsBody"><tr><td colspan="6" class="loading">Loading...</td></tr></tbody></table>
+    </div>
+    <div class="table-container" style="margin-top:20px">
+      <div class="table-header"><h3>Recent Referral Logs</h3></div>
+      <table><thead><tr><th>Referrer</th><th>Referred User</th><th>Code</th><th>Status</th><th>Plan</th><th>Commission (₹)</th><th>Date</th></tr></thead>
+      <tbody id="referralLogsBody"><tr><td colspan="7" class="loading">Loading...</td></tr></tbody></table>
+    </div>
+  </div>
+
+  <!-- WITHDRAWALS -->
+  <div class="section" id="sec-withdrawals">
+    <div class="stats-grid">
+      <div class="stat-card yellow"><div class="label">Pending Requests</div><div class="value" id="wdPending">—</div></div>
+      <div class="stat-card green"><div class="label">Approved Total</div><div class="value" id="wdApproved">—</div></div>
+      <div class="stat-card red"><div class="label">Total Paid Out</div><div class="value" id="wdTotalPaid">—</div></div>
+    </div>
+    <div class="table-container">
+      <div class="table-header"><h3>Withdrawal Requests</h3>
+        <div class="table-tools">
+          <select id="wdFilter" onchange="filterWithdrawals()" style="padding:8px 12px;background:#1a1a1a;border:1px solid #333;border-radius:8px;color:#fff;font-size:13px">
+            <option value="all">All Requests</option>
+            <option value="pending" selected>Pending Only</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+      </div>
+      <table><thead><tr><th>User ID</th><th>Amount (₹)</th><th>UPI ID</th><th>Status</th><th>Requested</th><th>Actions</th></tr></thead>
+      <tbody id="withdrawalsBody"><tr><td colspan="6" class="loading">Loading...</td></tr></tbody></table>
     </div>
   </div>
 </div>

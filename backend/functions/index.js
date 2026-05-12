@@ -117,6 +117,50 @@ app.post("/webhook", async (req, res) => {
                 "subscription.endDate": endDate, "subscription.status": "active",
             });
             console.log(`✅ Subscription activated for ${userId}: ${plan}`);
+
+            // ═══ REFERRAL COMMISSION LOGIC ═══
+            try {
+                const userDoc2 = await db.collection("users").doc(userId).get();
+                const ud = userDoc2.data();
+                const referredBy = ud.referredBy;
+                if (referredBy && ud.referralRewardPending) {
+                    const commission = Math.round(planInfo.price * 0.30 * 100) / 100;
+                    // Find referrer by code
+                    const refDoc = await db.collection("referrals").doc(referredBy).get();
+                    if (refDoc.exists) {
+                        const referrerUid = refDoc.data().userId;
+                        // Credit wallet
+                        await db.collection("wallets").doc(referrerUid).set({
+                            userId: referrerUid,
+                            balance: admin.firestore.FieldValue.increment(commission),
+                            totalEarnings: admin.firestore.FieldValue.increment(commission),
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        }, { merge: true });
+                        // Update referral stats
+                        await db.collection("referrals").doc(referredBy).update({
+                            successfulReferrals: admin.firestore.FieldValue.increment(1),
+                            totalEarnings: admin.firestore.FieldValue.increment(commission)
+                        });
+                        // Log the referral
+                        await db.collection("referral_logs").add({
+                            referrerUserId: referrerUid,
+                            referredUserId: userId,
+                            referralCode: referredBy,
+                            status: "completed",
+                            plan: plan,
+                            amount: planInfo.price,
+                            commission: commission,
+                            completedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            createdAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                        // Mark reward as claimed
+                        await db.collection("users").doc(userId).update({ referralRewardPending: false });
+                        console.log(`🎁 Referral commission ₹${commission} credited to ${referrerUid} from ${userId}`);
+                    }
+                }
+            } catch (refErr) {
+                console.error("Referral commission error (non-fatal):", refErr.message);
+            }
         }
         return res.json({ success: true });
     } catch (error) {
@@ -218,6 +262,221 @@ app.post("/send-notification", async (req, res) => {
     } catch (error) {
         console.error("Send notification error:", error.message);
         return res.status(500).json({ error: error.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════
+// POST /generate-referral-code
+// ═══════════════════════════════════════════════════════════
+app.post("/generate-referral-code", async (req, res) => {
+    try {
+        const { userId } = req.body;
+        if (!userId) return res.status(400).json({ error: "userId is required" });
+
+        // Check if user exists and is premium
+        const userDoc = await db.collection("users").doc(userId).get();
+        if (!userDoc.exists) return res.status(404).json({ error: "User not found" });
+        const userData = userDoc.data();
+        const sub = userData.subscription || {};
+        if (sub.status !== "active" || sub.endDate < Date.now()) {
+            return res.status(403).json({ error: "Premium subscription required" });
+        }
+
+        // Check if user already has a code
+        if (userData.referralCode) {
+            const existing = await db.collection("referrals").doc(userData.referralCode).get();
+            if (existing.exists) {
+                return res.json({ success: true, code: userData.referralCode });
+            }
+        }
+
+        // Generate unique 6-char code
+        let code;
+        let attempts = 0;
+        do {
+            code = "SX" + Math.random().toString(36).substring(2, 6).toUpperCase();
+            const check = await db.collection("referrals").doc(code).get();
+            if (!check.exists) break;
+            attempts++;
+        } while (attempts < 10);
+
+        // Save referral doc
+        await db.collection("referrals").doc(code).set({
+            userId, code,
+            totalReferrals: 0, successfulReferrals: 0, totalEarnings: 0,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Save code on user doc
+        await db.collection("users").doc(userId).update({ referralCode: code });
+
+        // Initialize wallet if not exists
+        await db.collection("wallets").doc(userId).set({
+            userId, balance: 0, totalEarnings: 0, totalWithdrawn: 0,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        return res.json({ success: true, code });
+    } catch (error) {
+        console.error("Generate referral code error:", error.message);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════
+// GET /referral-info/:userId
+// ═══════════════════════════════════════════════════════════
+app.get("/referral-info/:userId", async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const userDoc = await db.collection("users").doc(userId).get();
+        if (!userDoc.exists) return res.status(404).json({ error: "User not found" });
+
+        const userData = userDoc.data();
+        const code = userData.referralCode || null;
+
+        let referralStats = { totalReferrals: 0, successfulReferrals: 0, totalEarnings: 0 };
+        if (code) {
+            const refDoc = await db.collection("referrals").doc(code).get();
+            if (refDoc.exists) referralStats = refDoc.data();
+        }
+
+        // Get wallet
+        let wallet = { balance: 0, totalEarnings: 0, totalWithdrawn: 0 };
+        const walletDoc = await db.collection("wallets").doc(userId).get();
+        if (walletDoc.exists) wallet = walletDoc.data();
+
+        // Get recent referral logs
+        const logsSnap = await db.collection("referral_logs")
+            .where("referrerUserId", "==", userId)
+            .orderBy("createdAt", "desc").limit(20).get();
+        const logs = [];
+        logsSnap.forEach(d => logs.push({ id: d.id, ...d.data() }));
+
+        return res.json({
+            success: true, code,
+            stats: referralStats, wallet, logs
+        });
+    } catch (error) {
+        console.error("Referral info error:", error.message);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════
+// POST /apply-referral
+// ═══════════════════════════════════════════════════════════
+app.post("/apply-referral", async (req, res) => {
+    try {
+        const { userId, code } = req.body;
+        if (!userId || !code) return res.status(400).json({ error: "userId and code are required" });
+
+        // Check code exists
+        const refDoc = await db.collection("referrals").doc(code.toUpperCase()).get();
+        if (!refDoc.exists) return res.status(404).json({ error: "Invalid referral code" });
+
+        const referrerUid = refDoc.data().userId;
+        // Prevent self-referral
+        if (referrerUid === userId) return res.status(400).json({ error: "Cannot use your own referral code" });
+
+        // Check if user already has a referral
+        const userDoc = await db.collection("users").doc(userId).get();
+        if (!userDoc.exists) return res.status(404).json({ error: "User not found" });
+        if (userDoc.data().referredBy) return res.status(400).json({ error: "Referral code already applied" });
+
+        // Apply referral
+        await db.collection("users").doc(userId).update({
+            referredBy: code.toUpperCase(),
+            referralRewardPending: true
+        });
+
+        // Increment total referrals
+        await db.collection("referrals").doc(code.toUpperCase()).update({
+            totalReferrals: admin.firestore.FieldValue.increment(1)
+        });
+
+        // Create pending log
+        await db.collection("referral_logs").add({
+            referrerUserId: referrerUid,
+            referredUserId: userId,
+            referralCode: code.toUpperCase(),
+            status: "pending",
+            plan: null, amount: 0, commission: 0,
+            completedAt: null,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        return res.json({ success: true, message: "Referral code applied!" });
+    } catch (error) {
+        console.error("Apply referral error:", error.message);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════
+// GET /wallet/:userId
+// ═══════════════════════════════════════════════════════════
+app.get("/wallet/:userId", async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const walletDoc = await db.collection("wallets").doc(userId).get();
+        const wallet = walletDoc.exists ? walletDoc.data() : { balance: 0, totalEarnings: 0, totalWithdrawn: 0 };
+
+        // Get recent withdrawal history
+        const wSnap = await db.collection("withdrawals")
+            .where("userId", "==", userId)
+            .orderBy("requestedAt", "desc").limit(20).get();
+        const withdrawals = [];
+        wSnap.forEach(d => withdrawals.push({ id: d.id, ...d.data() }));
+
+        return res.json({ success: true, wallet, withdrawals });
+    } catch (error) {
+        console.error("Wallet error:", error.message);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════
+// POST /request-withdrawal
+// ═══════════════════════════════════════════════════════════
+app.post("/request-withdrawal", async (req, res) => {
+    try {
+        const { userId, amount, upiId } = req.body;
+        if (!userId || !amount || !upiId) return res.status(400).json({ error: "userId, amount, and upiId are required" });
+
+        const amt = parseFloat(amount);
+        if (isNaN(amt) || amt < 50) return res.status(400).json({ error: "Minimum withdrawal is ₹50" });
+
+        // Check wallet balance
+        const walletDoc = await db.collection("wallets").doc(userId).get();
+        if (!walletDoc.exists) return res.status(400).json({ error: "No wallet found" });
+        const wallet = walletDoc.data();
+        if (wallet.balance < amt) return res.status(400).json({ error: "Insufficient balance" });
+
+        // Check for pending withdrawal
+        const pendingSnap = await db.collection("withdrawals")
+            .where("userId", "==", userId)
+            .where("status", "==", "pending").limit(1).get();
+        if (!pendingSnap.empty) return res.status(400).json({ error: "You already have a pending withdrawal request" });
+
+        // Deduct from wallet and create withdrawal
+        await db.collection("wallets").doc(userId).update({
+            balance: admin.firestore.FieldValue.increment(-amt),
+            totalWithdrawn: admin.firestore.FieldValue.increment(amt),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        const withdrawalRef = await db.collection("withdrawals").add({
+            userId, amount: amt, upiId,
+            status: "pending", adminNote: "",
+            requestedAt: admin.firestore.FieldValue.serverTimestamp(),
+            processedAt: null
+        });
+
+        return res.json({ success: true, withdrawalId: withdrawalRef.id });
+    } catch (error) {
+        console.error("Request withdrawal error:", error.message);
+        return res.status(500).json({ error: "Internal server error" });
     }
 });
 

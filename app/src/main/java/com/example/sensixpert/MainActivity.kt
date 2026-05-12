@@ -24,6 +24,7 @@ import com.example.sensixpert.ui.theme.SensixpertTheme
 import com.example.sensixpert.viewmodel.AuthState
 import com.example.sensixpert.viewmodel.AuthViewModel
 import com.example.sensixpert.viewmodel.BoosterViewModel
+import com.example.sensixpert.viewmodel.ReferralViewModel
 import com.example.sensixpert.viewmodel.SubscriptionViewModel
 
 
@@ -31,7 +32,8 @@ enum class AppScreen {
     LOGIN, REGISTER,
     BOOSTER, SENSITIVITY_GUNS, SENSITIVITY_DEVICE,
     PRIVACY_POLICY, TERMS_CONDITIONS,
-    SUBSCRIPTION, SUPPORT
+    SUBSCRIPTION, SUPPORT,
+    REFER_EARN, WALLET
 }
 
 class MainActivity : ComponentActivity() {
@@ -39,6 +41,7 @@ class MainActivity : ComponentActivity() {
     private val boosterViewModel: BoosterViewModel by viewModels()
     private val authViewModel: AuthViewModel by viewModels()
     private val subscriptionViewModel: SubscriptionViewModel by viewModels()
+    private val referralViewModel: ReferralViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -99,7 +102,8 @@ class MainActivity : ComponentActivity() {
                             MainAppFlow(
                                 boosterViewModel = boosterViewModel,
                                 authViewModel = authViewModel,
-                                subscriptionViewModel = subscriptionViewModel
+                                subscriptionViewModel = subscriptionViewModel,
+                                referralViewModel = referralViewModel
                             )
                         }
                     }
@@ -172,7 +176,8 @@ private fun AuthFlow(authViewModel: AuthViewModel) {
 private fun MainAppFlow(
     boosterViewModel: BoosterViewModel,
     authViewModel: AuthViewModel,
-    subscriptionViewModel: SubscriptionViewModel
+    subscriptionViewModel: SubscriptionViewModel,
+    referralViewModel: ReferralViewModel
 ) {
     var currentScreen by remember { mutableStateOf(AppScreen.BOOSTER) }
 
@@ -217,6 +222,9 @@ private fun MainAppFlow(
                 },
                 onNavigateToSupport = {
                     currentScreen = AppScreen.SUPPORT
+                },
+                onNavigateToReferEarn = {
+                    currentScreen = AppScreen.REFER_EARN
                 },
             )
             AppScreen.SENSITIVITY_GUNS -> SensitivityScreen(
@@ -265,6 +273,24 @@ private fun MainAppFlow(
                 userEmail = authViewModel.getUserEmail(),
                 onNavigateBack = {
                     currentScreen = AppScreen.BOOSTER
+                }
+            )
+            AppScreen.REFER_EARN -> ReferEarnScreen(
+                referralViewModel = referralViewModel,
+                userId = authViewModel.getUserId(),
+                isSubscribed = subscriptionViewModel.isSubscribed,
+                onNavigateBack = {
+                    currentScreen = AppScreen.BOOSTER
+                },
+                onNavigateToWallet = {
+                    currentScreen = AppScreen.WALLET
+                }
+            )
+            AppScreen.WALLET -> WalletScreen(
+                referralViewModel = referralViewModel,
+                userId = authViewModel.getUserId(),
+                onNavigateBack = {
+                    currentScreen = AppScreen.REFER_EARN
                 }
             )
             else -> {}

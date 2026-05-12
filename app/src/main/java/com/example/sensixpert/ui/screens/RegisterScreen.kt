@@ -169,6 +169,21 @@ fun RegisterScreen(
                 }
             )
 
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // ── Promo/Referral Code Field (Optional) ──
+            AuthTextField(
+                value = authViewModel.registerPromoCode,
+                onValueChange = { authViewModel.registerPromoCode = it.uppercase(); authViewModel.clearError() },
+                label = "Referral Code (Optional)",
+                keyboardType = KeyboardType.Text,
+                imeAction = ImeAction.Done,
+                onImeAction = {
+                    focusManager.clearFocus()
+                    authViewModel.register()
+                }
+            )
+
             Spacer(modifier = Modifier.height(8.dp))
 
             // ── Error Message ──

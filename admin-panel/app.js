@@ -52,13 +52,15 @@ function showSection(name,el){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('sec-'+name).classList.add('active');
   if(el)el.classList.add('active');
-  const titles={dashboard:'Dashboard',users:'Users',payments:'Payments',subscriptions:'Subscriptions',analytics:'Analytics',notifications:'Notifications',pricing:'Pricing',policies:'Policies',support:'Support'};
+  const titles={dashboard:'Dashboard',users:'Users',payments:'Payments',subscriptions:'Subscriptions',analytics:'Analytics',notifications:'Notifications',pricing:'Pricing',policies:'Policies',support:'Support',referrals:'Referrals',withdrawals:'Withdrawals'};
   document.getElementById('pageTitle').textContent=titles[name]||name;
   if(name==='notifications')loadNotifications();
   if(name==='pricing')loadPricing();
   if(name==='policies')loadPolicies();
   if(name==='analytics')renderAnalytics();
   if(name==='support')loadSupportLink();
+  if(name==='referrals')loadReferrals();
+  if(name==='withdrawals')loadWithdrawals();
 }
 
 // ─── REFRESH ALL (decoupled to handle partial permission errors) ───
@@ -100,6 +102,7 @@ async function refreshAll(){
   renderUsers();
   renderPayments();
   checkServer();
+  loadReferralDashboardStats();
 }
 
 // ─── SERVER HEALTH ───
@@ -471,4 +474,211 @@ function testSupportLink(){
   const link=document.getElementById('supportLink').value.trim();
   if(!link){showToast('❌ Enter a link first');return;}
   window.open(link,'_blank');
+}
+
+// ═══════════════════════════════════════════════════════
+// REFERRALS MANAGEMENT
+// ═══════════════════════════════════════════════════════
+let allReferrals=[], allReferralLogs=[], allWithdrawals=[];
+
+async function loadReferralDashboardStats(){
+  try{
+    // Count referrals
+    const refSnap=await db.collection('referrals').get();
+    let totalReferred=0;
+    refSnap.forEach(d=>{totalReferred+=d.data().totalReferrals||0});
+    const el1=document.getElementById('statReferrals');
+    if(el1) el1.textContent=totalReferred;
+
+    // Count pending withdrawals
+    const wdSnap=await db.collection('withdrawals').where('status','==','pending').get();
+    const el2=document.getElementById('statPendingWithdrawals');
+    if(el2) el2.textContent=wdSnap.size;
+  }catch(e){
+    console.error('Referral stats error:',e);
+  }
+}
+
+async function loadReferrals(){
+  try{
+    // Load referral codes
+    const refSnap=await db.collection('referrals').get();
+    allReferrals=[];
+    let totalReferred=0, totalSuccessful=0, totalCommissions=0;
+    refSnap.forEach(d=>{
+      const data={id:d.id,...d.data()};
+      allReferrals.push(data);
+      totalReferred+=(data.totalReferrals||0);
+      totalSuccessful+=(data.successfulReferrals||0);
+      totalCommissions+=(data.totalEarnings||0);
+    });
+
+    // Update stats
+    document.getElementById('refTotalCodes').textContent=allReferrals.length;
+    document.getElementById('refTotalReferred').textContent=totalReferred;
+    document.getElementById('refTotalCommissions').textContent='₹'+totalCommissions.toFixed(0);
+    document.getElementById('refConvRate').textContent=totalReferred>0?((totalSuccessful/totalReferred)*100).toFixed(1)+'%':'0%';
+
+    // Render referral codes table
+    const tbody=document.getElementById('referralsBody');
+    if(allReferrals.length===0){
+      tbody.innerHTML='<tr><td colspan="6" class="loading">No referral codes yet</td></tr>';
+    }else{
+      tbody.innerHTML=allReferrals.map(r=>{
+        const created=r.createdAt?new Date(r.createdAt.seconds*1000).toLocaleDateString():'—';
+        return `<tr>
+          <td><strong style="color:#FF6B35">${r.code||r.id}</strong></td>
+          <td title="${r.userId}">${(r.userId||'').substring(0,12)}…</td>
+          <td>${r.totalReferrals||0}</td>
+          <td>${r.successfulReferrals||0}</td>
+          <td>₹${(r.totalEarnings||0).toFixed(0)}</td>
+          <td>${created}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    // Load referral logs
+    const logsSnap=await db.collection('referral_logs').orderBy('createdAt','desc').limit(50).get();
+    allReferralLogs=[];
+    logsSnap.forEach(d=>allReferralLogs.push({id:d.id,...d.data()}));
+
+    const logsTbody=document.getElementById('referralLogsBody');
+    if(allReferralLogs.length===0){
+      logsTbody.innerHTML='<tr><td colspan="7" class="loading">No referral logs yet</td></tr>';
+    }else{
+      logsTbody.innerHTML=allReferralLogs.map(l=>{
+        const created=l.createdAt?new Date(l.createdAt.seconds*1000).toLocaleDateString():'—';
+        const statusBadge=l.status==='completed'
+          ?'<span class="badge success">✅ Completed</span>'
+          :'<span class="badge pending">⏳ Pending</span>';
+        return `<tr>
+          <td title="${l.referrerUserId}">${(l.referrerUserId||'').substring(0,12)}…</td>
+          <td title="${l.referredUserId}">${(l.referredUserId||'').substring(0,12)}…</td>
+          <td><strong style="color:#FF6B35">${l.referralCode||''}</strong></td>
+          <td>${statusBadge}</td>
+          <td>${l.plan||'—'}</td>
+          <td>₹${(l.commission||0).toFixed(0)}</td>
+          <td>${created}</td>
+        </tr>`;
+      }).join('');
+    }
+  }catch(e){
+    console.error('Load referrals error:',e);
+    showToast('❌ Failed to load referrals: '+e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// WITHDRAWALS MANAGEMENT
+// ═══════════════════════════════════════════════════════
+async function loadWithdrawals(){
+  try{
+    const wSnap=await db.collection('withdrawals').orderBy('requestedAt','desc').get();
+    allWithdrawals=[];
+    let pendingCount=0, approvedCount=0, totalPaid=0;
+    wSnap.forEach(d=>{
+      const data={id:d.id,...d.data()};
+      allWithdrawals.push(data);
+      if(data.status==='pending') pendingCount++;
+      if(data.status==='approved'||data.status==='completed'){approvedCount++;totalPaid+=data.amount||0;}
+    });
+
+    document.getElementById('wdPending').textContent=pendingCount;
+    document.getElementById('wdApproved').textContent=approvedCount;
+    document.getElementById('wdTotalPaid').textContent='₹'+totalPaid.toFixed(0);
+
+    renderWithdrawalsTable();
+  }catch(e){
+    console.error('Load withdrawals error:',e);
+    showToast('❌ Failed to load withdrawals: '+e.message);
+  }
+}
+
+function filterWithdrawals(){
+  renderWithdrawalsTable();
+}
+
+function renderWithdrawalsTable(){
+  const filter=document.getElementById('wdFilter')?.value||'all';
+  const filtered=filter==='all'?allWithdrawals:allWithdrawals.filter(w=>w.status===filter);
+  const tbody=document.getElementById('withdrawalsBody');
+
+  if(filtered.length===0){
+    tbody.innerHTML='<tr><td colspan="6" class="loading">No withdrawal requests</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML=filtered.map(w=>{
+    const requested=w.requestedAt?new Date(w.requestedAt.seconds*1000).toLocaleDateString():'—';
+    let statusBadge='';
+    if(w.status==='pending') statusBadge='<span class="badge pending">⏳ Pending</span>';
+    else if(w.status==='approved'||w.status==='completed') statusBadge='<span class="badge success">✅ Approved</span>';
+    else if(w.status==='rejected') statusBadge='<span class="badge failed">❌ Rejected</span>';
+
+    let actions='';
+    if(w.status==='pending'){
+      actions=`<button class="btn-action" onclick="approveWithdrawal('${w.id}')" style="font-size:11px;padding:4px 10px;margin:2px">✅ Approve</button>
+               <button class="btn-action" onclick="rejectWithdrawal('${w.id}')" style="font-size:11px;padding:4px 10px;margin:2px;background:#ff4444">❌ Reject</button>`;
+    }else{
+      actions='<span style="color:#666;font-size:11px">Processed</span>';
+    }
+
+    return `<tr>
+      <td title="${w.userId}">${(w.userId||'').substring(0,12)}…</td>
+      <td><strong>₹${(w.amount||0).toFixed(0)}</strong></td>
+      <td style="color:#4fc3f7">${w.upiId||'—'}</td>
+      <td>${statusBadge}</td>
+      <td>${requested}</td>
+      <td>${actions}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function approveWithdrawal(id){
+  if(!confirm('Approve this withdrawal? Make sure to send the payment via UPI first.')) return;
+  try{
+    await db.collection('withdrawals').doc(id).update({
+      status:'approved',
+      processedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      adminNote:'Approved by admin'
+    });
+    showToast('✅ Withdrawal approved!');
+    loadWithdrawals();
+    loadReferralDashboardStats();
+  }catch(e){
+    console.error('Approve withdrawal error:',e);
+    showToast('❌ Failed: '+e.message);
+  }
+}
+
+async function rejectWithdrawal(id){
+  const reason=prompt('Rejection reason (optional):');
+  if(reason===null) return; // cancelled
+  try{
+    // Get withdrawal details to refund wallet
+    const wDoc=await db.collection('withdrawals').doc(id).get();
+    if(!wDoc.exists){showToast('❌ Withdrawal not found');return;}
+    const wData=wDoc.data();
+
+    // Refund wallet balance
+    await db.collection('wallets').doc(wData.userId).update({
+      balance:firebase.firestore.FieldValue.increment(wData.amount),
+      totalWithdrawn:firebase.firestore.FieldValue.increment(-wData.amount),
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Update withdrawal status
+    await db.collection('withdrawals').doc(id).update({
+      status:'rejected',
+      adminNote:reason||'Rejected by admin',
+      processedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    showToast('✅ Withdrawal rejected, balance refunded!');
+    loadWithdrawals();
+    loadReferralDashboardStats();
+  }catch(e){
+    console.error('Reject withdrawal error:',e);
+    showToast('❌ Failed: '+e.message);
+  }
 }

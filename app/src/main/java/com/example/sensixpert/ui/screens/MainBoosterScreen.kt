@@ -46,6 +46,7 @@ fun MainBoosterScreen(
     onNavigateToTerms: () -> Unit = {},
     onNavigateToSubscription: () -> Unit = {},
     onNavigateToSupport: () -> Unit = {},
+    onNavigateToReferEarn: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -145,6 +146,19 @@ fun MainBoosterScreen(
                     onClick = {
                         scope.launch { drawerState.close() }
                         onNavigateToTerms()
+                    }
+                )
+
+                // ── Refer & Earn (Premium Only) ──
+                DrawerMenuItem(
+                    label = if (isSubscribed) "🎁 Refer & Earn" else "🔒 Refer & Earn",
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        if (isSubscribed) {
+                            onNavigateToReferEarn()
+                        } else {
+                            showSubscribePrompt = true
+                        }
                     }
                 )
 
