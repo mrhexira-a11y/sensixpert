@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SensiXpert Admin Panel</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<!-- LOGIN -->
+<div class="login-container" id="loginScreen">
+<div class="login-box">
+  <h1>🎮 SensiXpert</h1>
+  <p>Admin Panel — Manage your app</p>
+  <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="admin@example.com"></div>
+  <div class="form-group"><label>Password</label><input type="password" id="loginPassword" placeholder="Enter password" onkeydown="if(event.key==='Enter')login()"></div>
+  <button class="btn-primary" onclick="login()">LOGIN</button>
+  <p class="error-msg" id="loginError"></p>
+</div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="dashboard" id="dashboardScreen">
+<aside class="sidebar">
+  <div class="logo">SensiXpert<span>Admin Panel</span></div>
+  <div class="nav-item active" onclick="showSection('dashboard',this)"><span class="icon">📊</span><span>Dashboard</span></div>
+  <div class="nav-item" onclick="showSection('users',this)"><span class="icon">👥</span><span>Users</span></div>
+  <div class="nav-item" onclick="showSection('payments',this)"><span class="icon">💳</span><span>Payments</span></div>
+  <div class="nav-item" onclick="showSection('subscriptions',this)"><span class="icon">👑</span><span>Subscriptions</span></div>
+  <div class="nav-item" onclick="showSection('analytics',this)"><span class="icon">📈</span><span>Analytics</span></div>
+  <div class="nav-item" onclick="showSection('notifications',this)"><span class="icon">📢</span><span>Notifications</span></div>
+  <div class="nav-item" onclick="showSection('support',this)"><span class="icon">💬</span><span>Support</span></div>
+  <div class="nav-item" onclick="showSection('referrals',this)"><span class="icon">🎁</span><span>Referrals</span></div>
+  <div class="nav-item" onclick="showSection('withdrawals',this)"><span class="icon">💰</span><span>Withdrawals</span></div>
+  <div class="sidebar-footer">
+    <div class="server-status"><div class="status-dot" id="serverDot"></div><span id="serverText">Checking...</span></div>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <h2 id="pageTitle">Dashboard</h2>
+    <div class="topbar-actions">
+      <button class="btn-refresh" onclick="refreshAll()" title="Refresh">🔄</button>
+      <button class="btn-logout" onclick="logout()">🚪 Logout</button>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="section active" id="sec-dashboard">
+    <div class="stats-grid">
+      <div class="stat-card"><div class="label">Total Users</div><div class="value" id="statUsers">—</div></div>
+      <div class="stat-card green"><div class="label">Active Subscribers</div><div class="value" id="statActive">—</div></div>
+      <div class="stat-card red"><div class="label">Total Revenue</div><div class="value" id="statRevenue">—</div></div>
+      <div class="stat-card yellow"><div class="label">Pending Payments</div><div class="value" id="statPending">—</div></div>
+      <div class="stat-card blue"><div class="label">Today's Revenue</div><div class="value" id="statToday">—</div></div>
+      <div class="stat-card purple"><div class="label">Conversion Rate</div><div class="value" id="statConversion">—</div></div>
+      <div class="stat-card" style="border-color:#FF6B35"><div class="label">🎁 Total Referrals</div><div class="value" id="statReferrals">—</div></div>
+      <div class="stat-card" style="border-color:#FFD700"><div class="label">💰 Pending Withdrawals</div><div class="value" id="statPendingWithdrawals">—</div></div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card"><h4>📊 Revenue (Last 7 Days)</h4><canvas id="revenueChart"></canvas></div>
+      <div class="chart-card"><h4>🎯 Plan Distribution</h4><canvas id="planChart"></canvas></div>
+    </div>
+    <div class="table-container">
+      <div class="table-header"><h3>Recent Payments</h3></div>
+      <table><thead><tr><th>Order ID</th><th>User</th><th>Plan</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
+      <tbody id="recentPayments"><tr><td colspan="6" class="loading">Loading...</td></tr></tbody></table>
+    </div>
+  </div>
+
+  <!-- USERS -->
+  <div class="section" id="sec-users">
+    <div class="table-container">
+      <div class="table-header"><h3>All Users <span id="userCount"></span></h3>
+        <div class="table-tools"><input class="search-box" placeholder="🔍 Search users..." oninput="filterTable('usersTable',this.value)"><button class="btn-export" onclick="exportCSV('users')">📥 Export CSV</button></div>
+      </div>
+      <table id="usersTable"><thead><tr><th>UID</th><th>Email</th><th>Plan</th><th>Status</th><th>Expires</th><th>Actions</th></tr></thead>
+      <tbody id="usersBody"><tr><td colspan="6" class="loading">Loading...</td></tr></tbody></table>
+    </div>
+  </div>
+
+  <!-- PAYMENTS -->
+  <div class="section" id="sec-payments">
+    <div class="table-container">
+      <div class="table-header"><h3>All Payments <span id="payCount"></span></h3>
+        <div class="table-tools"><input class="search-box" placeholder="🔍 Search payments..." oninput="filterTable('paymentsTable',this.value)"><button class="btn-export" onclick="exportCSV('payments')">📥 Export CSV</button></div>
+      </div>
+      <table id="paymentsTable"><thead><tr><th>Order ID</th><th>User ID</th><th>Plan</th><th>Amount</th><th>Status</th><th>Date</th><th>Txn ID</th></tr></thead>
+      <tbody id="paymentsBody"><tr><td colspan="7" class="loading">Loading...</td></tr></tbody></table>
+    </div>
+  </div>
+
+  <!-- SUBSCRIPTIONS -->
+  <div class="section" id="sec-subscriptions">
+    <div class="table-container">
+      <div class="table-header"><h3>Active Subscriptions <span id="subCount"></span></h3></div>
+      <table><thead><tr><th>User ID</th><th>Email</th><th>Plan</th><th>Start</th><th>End</th><th>Actions</th></tr></thead>
+      <tbody id="subsBody"><tr><td colspan="6" class="loading">Loading...</td></tr></tbody></table>
+    </div>
+  </div>
+
+  <!-- ANALYTICS -->
+  <div class="section" id="sec-analytics">
+    <div class="charts-grid">
+      <div class="chart-card"><h4>📊 Revenue (Last 7 Days)</h4><canvas id="revenueChart2"></canvas></div>
+      <div class="chart-card"><h4>🎯 Plan Distribution</h4><canvas id="planChart2"></canvas></div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card green"><div class="label">Avg Revenue/Day</div><div class="value" id="avgRevDay">—</div></div>
+      <div class="stat-card blue"><div class="label">Total Payments</div><div class="value" id="totalPayCount">—</div></div>
+      <div class="stat-card yellow"><div class="label">Success Rate</div><div class="value" id="successRate">—</div></div>
+      <div class="stat-card purple"><div class="label">Most Popular Plan</div><div class="value" id="topPlan">—</div></div>
+    </div>
+  </div>
+
+  <!-- NOTIFICATIONS -->
+  <div class="section" id="sec-notifications">
+    <div class="settings-grid">
+      <div class="settings-card" style="grid-column:span 2">
+        <h4>📢 Send Notification</h4>
+        <div class="form-group"><label>Title</label><input type="text" id="notifTitle" placeholder="Enter notification title" style="width:100%;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px"></div>
+        <div class="form-group"><label>Message</label><textarea id="notifMessage" placeholder="Enter notification message" rows="3" style="width:100%;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;resize:vertical"></textarea></div>
+        <div class="form-group"><label>Send To</label>
+          <select id="notifTarget" style="width:100%;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px" onchange="toggleUserSelect()">
+            <option value="all">📢 All Users</option>
+            <option value="non_subscribers">🔓 Non-Subscribers Only</option>
+            <option value="subscribers">👑 Subscribers Only</option>
+            <option value="specific">🎯 Specific User</option>
+          </select>
+        </div>
+        <div class="form-group" id="specificUserGroup" style="display:none"><label>User Email/UID</label><input type="text" id="notifSpecificUser" placeholder="Enter user email or UID" style="width:100%;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px"></div>
+        <div class="form-group"><label>🔗 Link URL <span style="color:var(--text2);font-weight:400">(Optional — opens when user clicks notification)</span></label><input type="url" id="notifLink" placeholder="https://example.com or leave empty" style="width:100%;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px"></div>
+        <button class="btn-primary" onclick="sendNotification()" style="margin-top:8px">📤 SEND NOTIFICATION</button>
+      </div>
+    </div>
+    <div class="table-container" style="margin-top:20px">
+      <div class="table-header"><h3>Sent Notifications</h3></div>
+      <table><thead><tr><th>Title</th><th>Message</th><th>Target</th><th>Date</th><th>Actions</th></tr></thead>
+      <tbody id="notifBody"><tr><td colspan="5" class="loading">Loading...</td></tr></tbody></table>
+    </div>
+  </div>
+
+  <!-- SUPPORT LINK -->
+  <div class="section" id="sec-support">
+    <div class="card" style="max-width:600px">
+      <h3 style="margin-bottom:16px">🔗 Support Contact Link</h3>
+      <p style="color:#999;font-size:13px;margin-bottom:20px">Set the link that opens when users tap "Contact Now" in the app. You can use Telegram, Instagram, WhatsApp, or any URL.</p>
+      <div class="form-group" style="margin-bottom:14px">
+        <label style="color:#ccc;font-size:12px;margin-bottom:6px;display:block">Button Label</label>
+        <input type="text" id="supportLabel" placeholder="e.g. Contact us on Telegram" style="width:100%;padding:10px 14px;background:#1a1a1a;border:1px solid #333;border-radius:8px;color:#fff;font-size:14px">
+      </div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label style="color:#ccc;font-size:12px;margin-bottom:6px;display:block">Support Link URL</label>
+        <input type="text" id="supportLink" placeholder="e.g. https://t.me/sensixpert" style="width:100%;padding:10px 14px;background:#1a1a1a;border:1px solid #333;border-radius:8px;color:#fff;font-size:14px">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="btn-primary" onclick="saveSupportLink()">💾 Save Link</button>
+        <button class="btn-action" onclick="testSupportLink()" style="font-size:13px">🔗 Test Link</button>
+      </div>
+      <div id="supportLinkStatus" style="margin-top:12px;font-size:12px;color:#888"></div>
+      <div style="margin-top:20px;padding:14px;background:#111;border-radius:10px;border:1px solid #222">
+        <p style="color:#666;font-size:11px;margin-bottom:6px">CURRENT LINK PREVIEW</p>
+        <p id="supportLinkPreview" style="color:#4fc3f7;font-size:13px;word-break:break-all">Loading...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- REFERRALS -->
+  <div class="section" id="sec-referrals">
+    <div class="stats-grid">
+      <div class="stat-card green"><div class="label">Total Referral Codes</div><div class="value" id="refTotalCodes">—</div></div>
+      <div class="stat-card blue"><div class="label">Total Referred Users</div><div class="value" id="refTotalReferred">—</div></div>
+      <div class="stat-card red"><div class="label">Total Commissions Paid</div><div class="value" id="refTotalCommissions">—</div></div>
+      <div class="stat-card yellow"><div class="label">Conversion Rate</div><div class="value" id="refConvRate">—</div></div>
+    </div>
+    <div class="table-container">
+      <div class="table-header"><h3>All Referral Codes</h3></div>
+      <table><thead><tr><th>Code</th><th>User ID</th><th>Total Referred</th><th>Successful</th><th>Earnings (₹)</th><th>Created</th></tr></thead>
+      <tbody id="referralsBody"><tr><td colspan="6" class="loading">Loading...</td></tr></tbody></table>
+    </div>
+    <div class="table-container" style="margin-top:20px">
+      <div class="table-header"><h3>Recent Referral Logs</h3></div>
+      <table><thead><tr><th>Referrer</th><th>Referred User</th><th>Code</th><th>Status</th><th>Plan</th><th>Commission (₹)</th><th>Date</th></tr></thead>
+      <tbody id="referralLogsBody"><tr><td colspan="7" class="loading">Loading...</td></tr></tbody></table>
+    </div>
+  </div>
+
+  <!-- WITHDRAWALS -->
+  <div class="section" id="sec-withdrawals">
+    <div class="stats-grid">
+      <div class="stat-card yellow"><div class="label">Pending Requests</div><div class="value" id="wdPending">—</div></div>
+      <div class="stat-card green"><div class="label">Approved Total</div><div class="value" id="wdApproved">—</div></div>
+      <div class="stat-card red"><div class="label">Total Paid Out</div><div class="value" id="wdTotalPaid">—</div></div>
+    </div>
+    <div class="table-container">
+      <div class="table-header"><h3>Withdrawal Requests</h3>
+        <div class="table-tools">
+          <select id="wdFilter" onchange="filterWithdrawals()" style="padding:8px 12px;background:#1a1a1a;border:1px solid #333;border-radius:8px;color:#fff;font-size:13px">
+            <option value="all">All Requests</option>
+            <option value="pending" selected>Pending Only</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+      </div>
+      <table><thead><tr><th>User ID</th><th>Amount (₹)</th><th>UPI ID</th><th>Status</th><th>Requested</th><th>Actions</th></tr></thead>
+      <tbody id="withdrawalsBody"><tr><td colspan="6" class="loading">Loading...</td></tr></tbody></table>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ACTIVATE MODAL -->
+<div class="modal-overlay" id="activateModal">
+<div class="modal">
+  <h3>👑 Activate Subscription</h3>
+  <p style="color:#888;font-size:13px;margin-bottom:16px">User: <strong id="modalUserEmail"></strong></p>
+  <input type="hidden" id="modalUserId">
+  <div class="form-group"><label>Select Plan</label>
+    <select id="modalPlan"><option value="7days">7 Days — ₹49</option><option value="monthly">1 Month — ₹169</option><option value="3months">3 Months — ₹399</option></select>
+  </div>
+  <div class="modal-actions">
+    <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+    <button class="btn-confirm" onclick="confirmActivate()">Activate</button>
+  </div>
+</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
