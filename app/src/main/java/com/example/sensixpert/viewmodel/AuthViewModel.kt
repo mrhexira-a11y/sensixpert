@@ -78,6 +78,10 @@ class AuthViewModel : ViewModel() {
             errorMessage = "Please fill all fields"
             return
         }
+        if (registerPhone.length != 10) {
+            errorMessage = "Phone number must be exactly 10 digits"
+            return
+        }
         if (registerPassword.length < 6) {
             errorMessage = "Password must be at least 6 characters"
             return

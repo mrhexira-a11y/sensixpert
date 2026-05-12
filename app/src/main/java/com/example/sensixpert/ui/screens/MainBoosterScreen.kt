@@ -47,6 +47,7 @@ fun MainBoosterScreen(
     onNavigateToSubscription: () -> Unit = {},
     onNavigateToSupport: () -> Unit = {},
     onNavigateToReferEarn: () -> Unit = {},
+    onNavigateToMyProfile: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -128,6 +129,15 @@ fun MainBoosterScreen(
                     onClick = {
                         scope.launch { drawerState.close() }
                         onNavigateToSubscription()
+                    }
+                )
+
+                // ── My Profile ──
+                DrawerMenuItem(
+                    label = "👤 My Profile",
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        onNavigateToMyProfile()
                     }
                 )
 

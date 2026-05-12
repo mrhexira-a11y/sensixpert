@@ -33,7 +33,7 @@ enum class AppScreen {
     BOOSTER, SENSITIVITY_GUNS, SENSITIVITY_DEVICE,
     PRIVACY_POLICY, TERMS_CONDITIONS,
     SUBSCRIPTION, SUPPORT,
-    REFER_EARN, WALLET
+    REFER_EARN, WALLET, MY_PROFILE
 }
 
 class MainActivity : ComponentActivity() {
@@ -226,6 +226,9 @@ private fun MainAppFlow(
                 onNavigateToReferEarn = {
                     currentScreen = AppScreen.REFER_EARN
                 },
+                onNavigateToMyProfile = {
+                    currentScreen = AppScreen.MY_PROFILE
+                },
             )
             AppScreen.SENSITIVITY_GUNS -> SensitivityScreen(
                 modifier = Modifier.fillMaxSize(),
@@ -291,6 +294,15 @@ private fun MainAppFlow(
                 userId = authViewModel.getUserId(),
                 onNavigateBack = {
                     currentScreen = AppScreen.REFER_EARN
+                }
+            )
+            AppScreen.MY_PROFILE -> MyProfileScreen(
+                userId = authViewModel.getUserId(),
+                userName = authViewModel.getUserName(),
+                userEmail = authViewModel.getUserEmail(),
+                modifier = Modifier.fillMaxSize(),
+                onNavigateBack = {
+                    currentScreen = AppScreen.BOOSTER
                 }
             )
             else -> {}

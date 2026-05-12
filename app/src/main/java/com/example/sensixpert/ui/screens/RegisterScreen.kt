@@ -129,11 +129,15 @@ fun RegisterScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // ── Phone Field ──
+            // ── Phone Field (10 digits only) ──
             AuthTextField(
                 value = authViewModel.registerPhone,
-                onValueChange = { authViewModel.registerPhone = it; authViewModel.clearError() },
-                label = "Phone Number",
+                onValueChange = {
+                    val digits = it.filter { c -> c.isDigit() }.take(10)
+                    authViewModel.registerPhone = digits
+                    authViewModel.clearError()
+                },
+                label = "Phone Number (10 digits)",
                 keyboardType = KeyboardType.Phone,
                 imeAction = ImeAction.Next,
                 onImeAction = { focusManager.moveFocus(FocusDirection.Down) }
