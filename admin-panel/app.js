@@ -9,13 +9,17 @@ firebase.initializeApp({
 });
 const auth=firebase.auth(), db=firebase.firestore();
 const ADMIN_EMAILS=["sensixpertadmin@gmail.com","admin@sensixpert.com","mrhexira@gmail.com"];
-const BACKEND="https://sensixpert-backend.onrender.com";
+const BACKEND="https://sensixpert.com/api";
+const ADMIN_KEY='sxAdm_7f3k9Qz2026xR';
 let revenueChart,usersChart,revenueChart2,planChart2;
 let loginAttempts=0,lockoutUntil=0;
 
-// OneSignal config
-const ONESIGNAL_APP_ID='e83708b1-ef26-4755-9309-d5aeb64c734e';
-const ONESIGNAL_API_KEY='os_v2_app_2vkd2hsksueofedhd76h2zxdc7hycwlkh7lqk5oxjmzprhvotjcylhpkrjfyqwqowv655lngd3wz74a4nqlwdtjw4a4yqdbcx4yq5q';
+// Admin API helper
+async function adminFetch(path,opts={}){
+  const h=Object.assign({'Content-Type':'application/json','X-Admin-Key':ADMIN_KEY},opts.headers||{});
+  const r=await fetch(BACKEND+path,{...opts,headers:h});
+  return r.json();
+}
 
 // ─── AUTH (SECURE) ───
 async function login(){
@@ -69,35 +73,25 @@ async function refreshAll(){
   const btn=document.querySelector('.btn-refresh');
   if(btn){btn.classList.add('spinning');setTimeout(()=>btn.classList.remove('spinning'),600)}
 
-  // Load users (may fail due to Firestore rules)
+  // Load users from PHP backend (MySQL)
   try{
-    const uSnap=await db.collection('users').get();
-    allUsers=[];
-    uSnap.forEach(d=>{allUsers.push({id:d.id,...d.data()})});
+    const uRes=await adminFetch('/admin/users');
+    allUsers=uRes.users||[];
     usersAccessDenied=false;
   }catch(e){
     console.error('Users fetch error:',e);
-    if(e.code==='permission-denied'){
-      usersAccessDenied=true;
-      showToast('⚠️ Users collection: Permission denied. Update Firestore rules.');
-    }
     allUsers=[];
   }
 
-  // Load payments (independent of users)
+  // Load payments from PHP backend (MySQL)
   try{
-    const pSnap=await db.collection('payments').orderBy('createdAt','desc').get();
-    allPayments=[];
-    pSnap.forEach(d=>{allPayments.push({id:d.id,...d.data()})});
+    const pRes=await adminFetch('/admin/payments');
+    allPayments=pRes.payments||[];
   }catch(e){
     console.error('Payments fetch error:',e);
-    if(e.code==='permission-denied'){
-      showToast('⚠️ Payments collection: Permission denied.');
-    }
     allPayments=[];
   }
 
-  // Render everything from whatever data loaded
   renderDashboard();
   renderUsers();
   renderPayments();
@@ -217,25 +211,17 @@ function renderAnalytics(){
 // ─── USERS ───
 function renderUsers(){
   try{
-    // Show access denied message if Firestore rules block users collection
-    if(usersAccessDenied){
-      document.getElementById('usersBody').innerHTML='<tr><td colspan="6" class="empty" style="color:#ff4444">🔒 Access Denied — Update Firestore rules to allow admin read access to "users" collection</td></tr>';
-      document.getElementById('userCount').textContent='(⚠️)';
-      document.getElementById('subsBody').innerHTML='<tr><td colspan="6" class="empty" style="color:#ff4444">🔒 Access Denied — Users data required</td></tr>';
-      document.getElementById('subCount').textContent='(⚠️)';
-      return;
-    }
     let html='',subs=[];
     allUsers.forEach(u=>{
       const sub=u.subscription||{};
       const isActive=sub.status==='active'&&sub.endDate>Date.now();
       const endStr=sub.endDate?new Date(sub.endDate).toLocaleDateString('en-IN'):'—';
-      html+=`<tr><td title="${u.id}">${u.id.substring(0,14)}..</td><td>${u.email||'—'}</td><td>${sub.plan||'none'}</td><td><span class="badge ${isActive?'active':'inactive'}">${isActive?'Active':'Inactive'}</span></td><td>${endStr}</td><td><button class="btn-action green" onclick="openActivateModal('${u.id}','${u.email||''}')">✅ Activate</button><button class="btn-action" onclick="deactivateSub('${u.id}')">❌</button><button class="btn-action blue" onclick="viewUser('${u.id}')">👁</button></td></tr>`;
+      const banned=u.isBanned?'<span class="badge failed" style="margin-left:4px">BANNED</span>':'';
+      html+=`<tr><td title="${u.id}">${u.id.substring(0,14)}..${banned}</td><td>${u.email||'—'}</td><td>${sub.plan||'none'}</td><td><span class="badge ${isActive?'active':'inactive'}">${isActive?'Active':'Inactive'}</span></td><td>${endStr}</td><td><button class="btn-action green" onclick="openActivateModal('${u.id}','${u.email||''}')">✅</button><button class="btn-action" onclick="deactivateSub('${u.id}')">❌</button><button class="btn-action blue" onclick="viewUser('${u.id}')">👁</button><button class="btn-action" onclick="banUser('${u.id}',${u.isBanned?0:1})" style="background:${u.isBanned?'#4caf50':'#ff9800'}">${u.isBanned?'🔓':'🚫'}</button><button class="btn-action" onclick="deleteUser('${u.id}')" style="background:#f44336">🗑️</button></td></tr>`;
       if(isActive)subs.push({id:u.id,email:u.email,plan:sub.plan,start:sub.startDate,end:sub.endDate});
     });
     document.getElementById('usersBody').innerHTML=html||'<tr><td colspan="6" class="empty">No users</td></tr>';
     document.getElementById('userCount').textContent=`(${allUsers.length})`;
-    // Subscriptions
     let subHtml='';
     subs.forEach(s=>{
       subHtml+=`<tr><td>${s.id.substring(0,14)}..</td><td>${s.email||'—'}</td><td>${s.plan}</td><td>${new Date(s.start).toLocaleDateString('en-IN')}</td><td>${new Date(s.end).toLocaleDateString('en-IN')}</td><td><button class="btn-action" onclick="extendSub('${s.id}')">⏳ Extend</button><button class="btn-action" onclick="deactivateSub('${s.id}')">❌ Cancel</button></td></tr>`;
@@ -259,7 +245,7 @@ function renderPayments(){
   }catch(e){console.error('Payments error:',e)}
 }
 
-// ─── ACTIONS ───
+// ─── ACTIONS (via PHP Backend) ───
 function openActivateModal(uid,email){
   document.getElementById('modalUserId').value=uid;
   document.getElementById('modalUserEmail').textContent=email||uid.substring(0,16);
@@ -269,36 +255,51 @@ function closeModal(){document.querySelectorAll('.modal-overlay').forEach(m=>m.c
 async function confirmActivate(){
   const uid=document.getElementById('modalUserId').value;
   const plan=document.getElementById('modalPlan').value;
-  const daysMap={'7days':7,'monthly':30,'3months':90};
-  const now=Date.now();
-  await db.collection('users').doc(uid).update({
-    'subscription.plan':plan,'subscription.startDate':now,
-    'subscription.endDate':now+(daysMap[plan]*86400000),'subscription.status':'active'
-  });
-  closeModal();showToast('✅ Subscription activated!');
-  allUsers=[];allPayments=[];await refreshAll();
+  try{
+    await adminFetch('/admin/subscription/activate',{method:'POST',body:JSON.stringify({userId:uid,plan})});
+    closeModal();showToast('✅ Subscription activated!');
+    await refreshAll();
+  }catch(e){showToast('❌ '+e.message)}
 }
 async function deactivateSub(uid){
   if(!confirm('Deactivate this subscription?'))return;
-  await db.collection('users').doc(uid).update({'subscription.status':'inactive'});
-  showToast('Subscription deactivated');allUsers=[];allPayments=[];await refreshAll();
+  try{
+    await adminFetch('/admin/subscription/cancel',{method:'POST',body:JSON.stringify({userId:uid})});
+    showToast('Subscription deactivated');await refreshAll();
+  }catch(e){showToast('❌ '+e.message)}
 }
 async function extendSub(uid){
   const days=prompt('Kitne din extend karna hai?','30');
   if(!days||isNaN(days))return;
-  const user=allUsers.find(u=>u.id===uid);
-  const currentEnd=(user?.subscription?.endDate)||Date.now();
-  const newEnd=currentEnd+(parseInt(days)*86400000);
-  await db.collection('users').doc(uid).update({'subscription.endDate':newEnd});
-  showToast(`✅ Extended by ${days} days`);allUsers=[];allPayments=[];await refreshAll();
+  try{
+    await adminFetch('/admin/subscription/extend',{method:'POST',body:JSON.stringify({userId:uid,days:parseInt(days)})});
+    showToast(`✅ Extended by ${days} days`);await refreshAll();
+  }catch(e){showToast('❌ '+e.message)}
 }
-function viewUser(uid){
-  const u=allUsers.find(x=>x.id===uid);if(!u)return;
-  const sub=u.subscription||{};
-  let info=`📧 Email: ${u.email||'—'}\n🆔 UID: ${uid}\n📱 Phone: ${u.phone||'—'}\n\n👑 Plan: ${sub.plan||'none'}\n📌 Status: ${sub.status||'inactive'}`;
-  if(sub.startDate)info+=`\n📅 Start: ${new Date(sub.startDate).toLocaleDateString('en-IN')}`;
-  if(sub.endDate)info+=`\n📅 End: ${new Date(sub.endDate).toLocaleDateString('en-IN')}`;
-  alert(info);
+async function viewUser(uid){
+  try{
+    const res=await adminFetch('/admin/user/view',{method:'POST',body:JSON.stringify({userId:uid})});
+    const u=res.user||{};
+    let info=`📧 Email: ${u.email||'—'}\n🆔 UID: ${uid}\n📱 Phone: ${u.phone||'—'}\n👤 Name: ${u.name||'—'}\n\n👑 Plan: ${u.subscription_plan||'none'}\n📌 Status: ${u.subscription_status||'inactive'}`;
+    if(u.subscription_start)info+=`\n📅 Start: ${new Date(parseInt(u.subscription_start)).toLocaleDateString('en-IN')}`;
+    if(u.subscription_end)info+=`\n📅 End: ${new Date(parseInt(u.subscription_end)).toLocaleDateString('en-IN')}`;
+    if(u.is_banned)info+=`\n\n🚫 STATUS: BANNED`;
+    alert(info);
+  }catch(e){showToast('❌ '+e.message)}
+}
+async function banUser(uid,ban){
+  if(!confirm(ban?'Ban this user?':'Unban this user?'))return;
+  try{
+    await adminFetch('/admin/user/ban',{method:'POST',body:JSON.stringify({userId:uid,ban})});
+    showToast(ban?'🚫 User banned':'🔓 User unbanned');await refreshAll();
+  }catch(e){showToast('❌ '+e.message)}
+}
+async function deleteUser(uid){
+  if(!confirm('⚠️ DELETE this user permanently? This cannot be undone!'))return;
+  try{
+    await adminFetch('/admin/user/delete',{method:'POST',body:JSON.stringify({userId:uid})});
+    showToast('🗑️ User deleted');await refreshAll();
+  }catch(e){showToast('❌ '+e.message)}
 }
 
 // ─── EXPORT CSV ───
@@ -329,7 +330,7 @@ function showToast(msg){
   document.body.appendChild(t);setTimeout(()=>t.remove(),3000);
 }
 
-// ─── NOTIFICATIONS ───
+// ─── NOTIFICATIONS (via PHP Backend) ───
 function toggleUserSelect(){document.getElementById('specificUserGroup').style.display=document.getElementById('notifTarget').value==='specific'?'block':'none'}
 let sendingNotification=false;
 async function sendNotification(){
@@ -341,35 +342,20 @@ async function sendNotification(){
   if(!title||!msg){showToast('❌ Title and message required');return}
   const specificUser=target==='specific'?document.getElementById('notifSpecificUser').value:'';
   if(target==='specific'&&!specificUser){showToast('❌ Enter user email or UID');return}
-
   sendingNotification=true;
   showToast('📤 Sending notification...');
-
   try{
-    const response=await fetch(BACKEND+'/send-notification',{
+    const result=await adminFetch('/send-notification',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({title,message:msg,target,specificUser,link:link||undefined})
     });
-    const result=await response.json();
-    console.log('Notification response:',result);
-
-    // Save to Firestore for history
-    await db.collection('notifications').add({
-      title,message:msg,target,specificUser:specificUser||null,
-      link:link||null,
-      recipients:result.recipients||result.sent||0,
-      createdAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-
     document.getElementById('notifTitle').value='';
     document.getElementById('notifMessage').value='';
     if(document.getElementById('notifLink'))document.getElementById('notifLink').value='';
-
     if(result.success){
-      showToast(`📢 Notification sent! (${result.recipients||result.sent||0} recipients)`);
+      showToast(`📢 Notification sent! (${result.recipients||0} recipients)`);
     }else{
-      showToast('❌ '+(result.error||result.message||'Unknown error'));
+      showToast('❌ '+(result.error||'Unknown error'));
     }
     loadNotifications();
   }catch(e){
@@ -380,14 +366,24 @@ async function sendNotification(){
   }
 }
 async function loadNotifications(){
-  try{const snap=await db.collection('notifications').orderBy('createdAt','desc').limit(20).get();
-  let html='';snap.forEach(d=>{const n=d.data();const date=n.createdAt?new Date(n.createdAt.seconds*1000).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'}):'—';
-  const targetLabels={'all':'📢 All Users','non_subscribers':'🔓 Non-Subscribers','subscribers':'👑 Subscribers','specific':'🎯 '+(n.specificUser||'').substring(0,10)};
-  const tgt=targetLabels[n.target]||n.target;
-  html+=`<tr><td>${n.title}</td><td>${n.message.substring(0,40)}${n.message.length>40?'...':''}</td><td>${tgt}</td><td>${date}</td><td><button class="btn-action" onclick="deleteNotif('${d.id}')">🗑️</button></td></tr>`});
-  document.getElementById('notifBody').innerHTML=html||'<tr><td colspan="5" class="empty">No notifications sent</td></tr>'}catch(e){console.error(e)}
+  try{
+    const res=await adminFetch('/admin/notifications');
+    const notifs=res.notifications||[];
+    let html='';
+    notifs.forEach(n=>{
+      const date=n.createdAt?new Date(n.createdAt.seconds*1000).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'}):'—';
+      const targetLabels={'all':'📢 All Users','non_subscribers':'🔓 Non-Subscribers','subscribers':'👑 Subscribers','specific':'🎯 '+(n.specificUser||'').substring(0,10)};
+      const tgt=targetLabels[n.target]||n.target;
+      html+=`<tr><td>${n.title}</td><td>${n.message.substring(0,40)}${n.message.length>40?'...':''}</td><td>${tgt}</td><td>${date}</td><td><button class="btn-action" onclick="deleteNotif('${n.id}')">🗑️</button></td></tr>`;
+    });
+    document.getElementById('notifBody').innerHTML=html||'<tr><td colspan="5" class="empty">No notifications sent</td></tr>';
+  }catch(e){console.error(e)}
 }
-async function deleteNotif(id){if(!confirm('Delete this notification?'))return;await db.collection('notifications').doc(id).delete();showToast('🗑️ Notification deleted');loadNotifications()}
+async function deleteNotif(id){
+  if(!confirm('Delete this notification?'))return;
+  await adminFetch('/admin/notification/delete',{method:'POST',body:JSON.stringify({id:parseInt(id)})});
+  showToast('🗑️ Notification deleted');loadNotifications();
+}
 
 // ─── PRICING ───
 async function loadPricing(){
@@ -479,87 +475,56 @@ function testSupportLink(){
 // ═══════════════════════════════════════════════════════
 // REFERRALS MANAGEMENT
 // ═══════════════════════════════════════════════════════
-let allReferrals=[], allReferralLogs=[], allWithdrawals=[];
+// (variables are now local to their respective functions)
 
 async function loadReferralDashboardStats(){
   try{
-    // Count referrals
-    const refSnap=await db.collection('referrals').get();
+    const res=await adminFetch('/admin/referrals');
+    const refs=res.referrals||[];
     let totalReferred=0;
-    refSnap.forEach(d=>{totalReferred+=d.data().totalReferrals||0});
+    refs.forEach(r=>{totalReferred+=(r.total_referrals||0)});
     const el1=document.getElementById('statReferrals');
     if(el1) el1.textContent=totalReferred;
-
-    // Count pending withdrawals
-    const wdSnap=await db.collection('withdrawals').where('status','==','pending').get();
+    // Pending withdrawals
+    const wRes=await adminFetch('/admin/withdrawals');
+    const pending=(wRes.withdrawals||[]).filter(w=>w.status==='pending').length;
     const el2=document.getElementById('statPendingWithdrawals');
-    if(el2) el2.textContent=wdSnap.size;
-  }catch(e){
-    console.error('Referral stats error:',e);
-  }
+    if(el2) el2.textContent=pending;
+  }catch(e){console.error('Referral stats error:',e)}
 }
 
 async function loadReferrals(){
   try{
-    // Load referral codes
-    const refSnap=await db.collection('referrals').get();
-    allReferrals=[];
-    let totalReferred=0, totalSuccessful=0, totalCommissions=0;
-    refSnap.forEach(d=>{
-      const data={id:d.id,...d.data()};
-      allReferrals.push(data);
-      totalReferred+=(data.totalReferrals||0);
-      totalSuccessful+=(data.successfulReferrals||0);
-      totalCommissions+=(data.totalEarnings||0);
+    const res=await adminFetch('/admin/referrals');
+    const allReferrals=res.referrals||[];
+    const allReferralLogs=res.logs||[];
+    let totalReferred=0,totalSuccessful=0,totalCommissions=0;
+    allReferrals.forEach(r=>{
+      totalReferred+=(r.total_referrals||0);
+      totalSuccessful+=(r.successful_referrals||0);
+      totalCommissions+=parseFloat(r.total_earnings||0);
     });
-
-    // Update stats
     document.getElementById('refTotalCodes').textContent=allReferrals.length;
     document.getElementById('refTotalReferred').textContent=totalReferred;
     document.getElementById('refTotalCommissions').textContent='₹'+totalCommissions.toFixed(0);
     document.getElementById('refConvRate').textContent=totalReferred>0?((totalSuccessful/totalReferred)*100).toFixed(1)+'%':'0%';
-
-    // Render referral codes table
     const tbody=document.getElementById('referralsBody');
     if(allReferrals.length===0){
       tbody.innerHTML='<tr><td colspan="6" class="loading">No referral codes yet</td></tr>';
     }else{
       tbody.innerHTML=allReferrals.map(r=>{
-        const created=r.createdAt?new Date(r.createdAt.seconds*1000).toLocaleDateString():'—';
-        return `<tr>
-          <td><strong style="color:#FF6B35">${r.code||r.id}</strong></td>
-          <td title="${r.userId}">${(r.userId||'').substring(0,12)}…</td>
-          <td>${r.totalReferrals||0}</td>
-          <td>${r.successfulReferrals||0}</td>
-          <td>₹${(r.totalEarnings||0).toFixed(0)}</td>
-          <td>${created}</td>
-        </tr>`;
+        const created=r.created_at?new Date(r.created_at).toLocaleDateString():'—';
+        return `<tr><td><strong style="color:#FF6B35">${r.code}</strong></td><td title="${r.user_id}">${(r.user_id||'').substring(0,12)}…</td><td>${r.total_referrals||0}</td><td>${r.successful_referrals||0}</td><td>₹${parseFloat(r.total_earnings||0).toFixed(0)}</td><td>${created}</td></tr>`;
       }).join('');
     }
-
-    // Load referral logs
-    const logsSnap=await db.collection('referral_logs').orderBy('createdAt','desc').limit(50).get();
-    allReferralLogs=[];
-    logsSnap.forEach(d=>allReferralLogs.push({id:d.id,...d.data()}));
-
     const logsTbody=document.getElementById('referralLogsBody');
     if(allReferralLogs.length===0){
       logsTbody.innerHTML='<tr><td colspan="7" class="loading">No referral logs yet</td></tr>';
     }else{
       logsTbody.innerHTML=allReferralLogs.map(l=>{
-        const created=l.createdAt?new Date(l.createdAt.seconds*1000).toLocaleDateString():'—';
-        const statusBadge=l.status==='completed'
-          ?'<span class="badge success">✅ Completed</span>'
-          :'<span class="badge pending">⏳ Pending</span>';
-        return `<tr>
-          <td title="${l.referrerUserId}">${(l.referrerUserId||'').substring(0,12)}…</td>
-          <td title="${l.referredUserId}">${(l.referredUserId||'').substring(0,12)}…</td>
-          <td><strong style="color:#FF6B35">${l.referralCode||''}</strong></td>
-          <td>${statusBadge}</td>
-          <td>${l.plan||'—'}</td>
-          <td>₹${(l.commission||0).toFixed(0)}</td>
-          <td>${created}</td>
-        </tr>`;
+        const created=l.created_at?new Date(l.created_at).toLocaleDateString():'—';
+        const statusBadge=l.status==='completed'?'<span class="badge success">✅ Completed</span>':'<span class="badge pending">⏳ Pending</span>';
+        return `<tr><td title="${l.referrer_user_id}">${(l.referrer_user_id||'').substring(0,12)}…</td><td title="${l.referred_user_id}">${(l.referred_user_id||'').substring(0,12)}…</td><td><strong style="color:#FF6B35">${l.referral_code||''}</strong></td><td>${statusBadge}</td><td>${l.plan||'—'}</td><td>₹${parseFloat(l.commission||0).toFixed(0)}</td><td>${created}</td></tr>`;
       }).join('');
     }
   }catch(e){
@@ -569,24 +534,21 @@ async function loadReferrals(){
 }
 
 // ═══════════════════════════════════════════════════════
-// WITHDRAWALS MANAGEMENT
+// WITHDRAWALS MANAGEMENT (via PHP Backend)
 // ═══════════════════════════════════════════════════════
+let allWithdrawals=[];
 async function loadWithdrawals(){
   try{
-    const wSnap=await db.collection('withdrawals').orderBy('requestedAt','desc').get();
-    allWithdrawals=[];
+    const res=await adminFetch('/admin/withdrawals');
+    allWithdrawals=res.withdrawals||[];
     let pendingCount=0, approvedCount=0, totalPaid=0;
-    wSnap.forEach(d=>{
-      const data={id:d.id,...d.data()};
-      allWithdrawals.push(data);
-      if(data.status==='pending') pendingCount++;
-      if(data.status==='approved'||data.status==='completed'){approvedCount++;totalPaid+=data.amount||0;}
+    allWithdrawals.forEach(w=>{
+      if(w.status==='pending') pendingCount++;
+      if(w.status==='approved'||w.status==='completed'){approvedCount++;totalPaid+=w.amount||0;}
     });
-
     document.getElementById('wdPending').textContent=pendingCount;
     document.getElementById('wdApproved').textContent=approvedCount;
     document.getElementById('wdTotalPaid').textContent='₹'+totalPaid.toFixed(0);
-
     renderWithdrawalsTable();
   }catch(e){
     console.error('Load withdrawals error:',e);
@@ -594,27 +556,22 @@ async function loadWithdrawals(){
   }
 }
 
-function filterWithdrawals(){
-  renderWithdrawalsTable();
-}
+function filterWithdrawals(){renderWithdrawalsTable()}
 
 function renderWithdrawalsTable(){
   const filter=document.getElementById('wdFilter')?.value||'all';
   const filtered=filter==='all'?allWithdrawals:allWithdrawals.filter(w=>w.status===filter);
   const tbody=document.getElementById('withdrawalsBody');
-
   if(filtered.length===0){
     tbody.innerHTML='<tr><td colspan="6" class="loading">No withdrawal requests</td></tr>';
     return;
   }
-
   tbody.innerHTML=filtered.map(w=>{
     const requested=w.requestedAt?new Date(w.requestedAt.seconds*1000).toLocaleDateString():'—';
     let statusBadge='';
     if(w.status==='pending') statusBadge='<span class="badge pending">⏳ Pending</span>';
     else if(w.status==='approved'||w.status==='completed') statusBadge='<span class="badge success">✅ Approved</span>';
     else if(w.status==='rejected') statusBadge='<span class="badge failed">❌ Rejected</span>';
-
     let actions='';
     if(w.status==='pending'){
       actions=`<button class="btn-action" onclick="approveWithdrawal('${w.id}')" style="font-size:11px;padding:4px 10px;margin:2px">✅ Approve</button>
@@ -622,7 +579,6 @@ function renderWithdrawalsTable(){
     }else{
       actions='<span style="color:#666;font-size:11px">Processed</span>';
     }
-
     return `<tr>
       <td title="${w.userId}">${(w.userId||'').substring(0,12)}…</td>
       <td><strong>₹${(w.amount||0).toFixed(0)}</strong></td>
@@ -637,48 +593,18 @@ function renderWithdrawalsTable(){
 async function approveWithdrawal(id){
   if(!confirm('Approve this withdrawal? Make sure to send the payment via UPI first.')) return;
   try{
-    await db.collection('withdrawals').doc(id).update({
-      status:'approved',
-      processedAt:firebase.firestore.FieldValue.serverTimestamp(),
-      adminNote:'Approved by admin'
-    });
+    await adminFetch('/admin/withdrawal/approve',{method:'POST',body:JSON.stringify({id:parseInt(id)})});
     showToast('✅ Withdrawal approved!');
-    loadWithdrawals();
-    loadReferralDashboardStats();
-  }catch(e){
-    console.error('Approve withdrawal error:',e);
-    showToast('❌ Failed: '+e.message);
-  }
+    loadWithdrawals();loadReferralDashboardStats();
+  }catch(e){showToast('❌ Failed: '+e.message)}
 }
 
 async function rejectWithdrawal(id){
   const reason=prompt('Rejection reason (optional):');
-  if(reason===null) return; // cancelled
+  if(reason===null) return;
   try{
-    // Get withdrawal details to refund wallet
-    const wDoc=await db.collection('withdrawals').doc(id).get();
-    if(!wDoc.exists){showToast('❌ Withdrawal not found');return;}
-    const wData=wDoc.data();
-
-    // Refund wallet balance
-    await db.collection('wallets').doc(wData.userId).update({
-      balance:firebase.firestore.FieldValue.increment(wData.amount),
-      totalWithdrawn:firebase.firestore.FieldValue.increment(-wData.amount),
-      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-
-    // Update withdrawal status
-    await db.collection('withdrawals').doc(id).update({
-      status:'rejected',
-      adminNote:reason||'Rejected by admin',
-      processedAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-
+    await adminFetch('/admin/withdrawal/reject',{method:'POST',body:JSON.stringify({id:parseInt(id),reason:reason||'Rejected by admin'})});
     showToast('✅ Withdrawal rejected, balance refunded!');
-    loadWithdrawals();
-    loadReferralDashboardStats();
-  }catch(e){
-    console.error('Reject withdrawal error:',e);
-    showToast('❌ Failed: '+e.message);
-  }
+    loadWithdrawals();loadReferralDashboardStats();
+  }catch(e){showToast('❌ Failed: '+e.message)}
 }
